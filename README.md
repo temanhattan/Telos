@@ -30,10 +30,10 @@ AERS is built on a pipeline-oriented, plugin-extended architecture:
 ## Documentation
 Dive deeper into the system's design and principles:
 - [Vision](docs/00_Vision.md) - The mission, philosophy, and boundaries of the project.
-- [Architecture](docs/01_Architecture.md) - System topology, subsystem definitions, and data pipelines.
-- [Plugin API](docs/02_Plugin_API.md) - Guidelines for extending AERS.
-- [Coding Standards](docs/03_Coding_Standards.md) - Rules for contributing to the codebase.
-- [Roadmap](docs/04_Roadmap.md) - Future expansion phases.
+- [Architecture](docs/02_Architecture.md) - System topology, subsystem definitions, and data pipelines.
+- [Plugin API](docs/03_Plugin_API.md) - Guidelines for extending AERS.
+- [Coding Standards](docs/04_Coding_Standards.md) - Rules for contributing to the codebase.
+- [Roadmap](docs/05_Roadmap.md) - Future expansion phases.
 
 ## Status
 AERS is currently in the foundational design and specification phase. Active development has not yet commenced.
