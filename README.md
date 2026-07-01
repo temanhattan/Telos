@@ -1,102 +1,97 @@
-# AERS — Adaptive Environment Recovery System
+# Adaptive Environment Recovery System (AERS)
 
-> **A computer is not just its files.**
+## Overview
 
-AERS is a platform that rebuilds a *working computing environment* — not just the data on it. When you lose or migrate a machine, restoring files gets you your documents back, but not the environment: the packages you'd installed, how they were configured, and the reasoning behind those choices. AERS closes that gap by discovering and understanding an environment first, then treating backup as a byproduct of that understanding — enabling **deterministic environment reconstruction** on a new machine.
+The Adaptive Environment Recovery System (AERS) is an intelligent platform designed to discover, securely capture, and deterministically reconstruct computing environments.
 
-**Status:** 🚧 Foundational design and specification phase. Active development has not yet started. This README reflects intended design, not shipped functionality.
+Its core philosophy is simple: **"Understand the environment before backing it up."**
 
----
-
-## Table of Contents
-- [Why AERS](#why-aers)
-- [How It Works, In Short](#how-it-works-in-short)
-- [Core Philosophy](#core-philosophy)
-- [Architecture at a Glance](#architecture-at-a-glance)
-- [Use Cases](#use-cases)
-- [Project Status & Roadmap](#project-status--roadmap)
-- [Documentation](#documentation)
-- [Getting Involved](#getting-involved)
+Unlike traditional backup tools that blindly copy files, AERS analyzes a machine to determine its role, operating system, installed software, and configurations. It captures the *intent* behind the environment and constructs an intelligent backup plan, enabling you to restore a fully functional setup with confidence, speed, and security.
 
 ---
 
-## Why AERS
+## Key Features
 
-Imagine your laptop dies, or you're handed a fresh cloud instance and need it to feel like your old one. A traditional backup tool hands you back a pile of files — but you're still the one who has to remember: *Which Python version was this project pinned to? Did I configure that service with a custom flag? Why did I install this obscure package in the first place?*
+- **Environment Discovery**: Automatically identifies the OS, hardware profile, installed software, active services, user data, and network configurations.
+- **Intelligent Backup Planning**: Never backs up blindly. Generates structured, human-reviewable backup plans by determining what is essential versus what is transient or reproducible.
+- **Deterministic Restore**: Reconstructs the environment identically every time on a compatible target machine, adapting configurations when necessary.
+- **Plugin-based Architecture**: Uses an extensible plugin ecosystem for OS-specific logic, package managers, services, and cloud integrations without modifying the core system.
+- **Secure Archive Management**: Provides full credential isolation, zero-trust cryptographic signing, integrity verification, and strong encryption for all backup artifacts.
+- **Offline-first**: Fully functional without requiring cloud connectivity. Operates securely on untrusted storage media.
+- **AI-assisted Analysis**: Leverages machine learning models to classify environment components, suggest optimizations, and predict potential restore conflicts.
+- **Cross-platform Design**: Built to discover and reconstruct environments across physical machines, virtual machines, and cloud instances.
 
-AERS is built to answer those questions automatically. Instead of blindly copying bytes, it:
+---
 
-1. **Discovers** what's actually on your machine — OS, packages, services, configurations.
-2. **Understands** *why* those things are there (a package from a public registry doesn't need to be backed up as a binary blob — just its name and version).
-3. **Reconstructs** that environment deterministically on a new machine, the same way, every time.
+## Project Goals
 
-This makes AERS less like a backup tool and more like an **environment compiler**: input a captured snapshot, output a working system.
+AERS exists to solve the problem of "lost context" during disaster recovery, migration, or environment provisioning. When a machine is reformatted or lost, restoring files alone does not recreate the working environment. Users are often left remembering what was installed, how it was configured, and why certain decisions were made.
 
-## How It Works, In Short
+AERS eliminates this friction by treating backup as a byproduct of comprehension. By capturing intent alongside data, AERS guarantees deterministic environment reconstruction and gives developers peace of mind when managing diverse fleets of machines.
 
-A typical AERS flow looks like this:
+---
 
-```
-1. Discover   →  Scan the machine: OS, installed packages, running services, configs
-2. Capture    →  Record *intent* (e.g. "nginx 1.24 from apt") not raw binaries where avoidable
-3. Secure     →  Encrypt and integrity-verify every artifact before it's stored
-4. Store      →  Persist the snapshot to your chosen backend
-5. Reconstruct→  On a target machine, replay the snapshot to rebuild the environment
-                 (with human approval at every destructive step)
-```
+## High-Level Architecture
 
-**Example scenario:** You're running a lab VM with a custom-configured PostgreSQL instance, three Python virtual environments, and a handful of dotfiles tuning your shell. Your VM host dies. With AERS, a new VM boots up, AERS reads your last snapshot, reinstalls PostgreSQL at the same version with the same config, recreates each virtualenv from its recorded package list, and restores your dotfiles — all without you having to recall the exact setup from memory.
+AERS features a **pipeline-oriented, plugin-extended, CLI-driven** architecture. It strictly separates the stable core (orchestration, cryptography, verification, storage) from the variant periphery (OS-specific discovery, cloud adapters) through a formal Plugin API boundary.
 
-## Core Philosophy
+Data flows through linear, staged pipelines where each stage produces well-defined output consumed by the next. For complete details, refer to the [System Architecture](docs/02_Architecture.md) document.
 
-| Principle | What it means |
-|---|---|
-| **Discovery Before Backup** | AERS fully catalogs the environment (OS, packages, services, configs) *before* capturing any data. |
-| **Intent Over Artifacts** | AERS stores *why* something exists, not just *that* it exists. A package available in a public repo is stored as a name + version, not a binary. |
-| **Zero-Trust Security** | Every backup artifact is encrypted and integrity-verified before storage. Sensitive credentials are mathematically isolated. |
-| **Human in the Loop** | AERS never overwrites, deletes, or modifies data on a target machine without explicit human approval. |
-
-## Architecture at a Glance
-
-AERS uses a pipeline-oriented, plugin-extended architecture with four layers:
-
-- **The Core** — Small, stable, and entirely OS-agnostic. Owns orchestration, cryptography, storage, and verification.
-- **The Plugins** — All platform-specific knowledge (OS discovery, package managers, cloud adapters) lives here, not in the core.
-- **The Pipelines** — Backup and restore are linear, staged pipelines: data flows predictably from one stage to the next.
-- **AI Advisory Layer** *(optional)* — Suggests machine roles, scores artifact importance, and predicts restore conflicts. Always a non-binding advisor, operating under strict deterministic overrides — it can suggest, never decide.
-
-→ Full breakdown in [Architecture](docs/02_Architecture.md).
-
-## Use Cases
-
-- **New Machine Setup** — Reconstruct your entire development environment on a fresh OS install.
-- **VM Snapshot & Clone** — Capture the exact state of complex lab environments for easy cloning.
-- **Cloud Migration** — Move server environments between providers (e.g., AWS → GCP) by separating portable configs from provider-specific infrastructure.
-- **Disaster Recovery** — Get back to work quickly after hardware failure with prioritized, intelligent restoration.
-- **Environment Audit** — Compare your current machine state against past snapshots to detect drift or anomalies.
-
-## Project Status & Roadmap
-
-AERS is currently in the **foundational design and specification phase** — the architecture and philosophy above are settled, but no implementation exists yet. There's no installable release, CLI, or usage instructions to give yet; this section will be replaced with real installation and quick-start steps once a working build exists.
-
-See [Roadmap](docs/05_Roadmap.md) for the planned phases of development.
+---
 
 ## Documentation
 
-| Doc | What's in it |
-|---|---|
-| [Vision](docs/00_Vision.md) | The mission, philosophy, and boundaries of the project |
-| [Architecture](docs/02_Architecture.md) | System topology, subsystem definitions, and data pipelines |
-| [Plugin API](docs/03_Plugin_API.md) | Guidelines for extending AERS |
-| [Coding Standards](docs/04_Coding_Standards.md) | Rules for contributing to the codebase |
-| [Roadmap](docs/05_Roadmap.md) | Future expansion phases |
+| Document | Description |
+|----------|-------------|
+| [Vision](docs/00_Vision.md) | Mission statement, goals, and long-term vision. |
+| [Requirements](docs/01_Requirements.md) | Software Requirements Specification (functional & non-functional). |
+| [Architecture](docs/02_Architecture.md) | High-level system design, subsystems, and data flows. |
+| [Plugin API](docs/05_Plugin_API.md) | Contract and specification for the plugin extension ecosystem. |
+| [Threat Model](docs/03_Threat_Model.md) | Security analysis, trust boundaries, and STRIDE evaluation. |
+| [Data Model](docs/04_Data_Model.md) | Canonical domain vocabulary and entity lifecycle rules. |
+| [Roadmap](docs/07_Roadmap.md) | Implementation phases and future expansion plans. |
+| [Coding Standards](docs/06_Coding_Standards.md) | Guidelines for contributing code to the project. |
+| [ADRs](docs/09_ADRs/) | Architecture Decision Records for significant design choices. |
 
-## Getting Involved
+---
 
-Since AERS hasn't reached implementation yet, the highest-value way to engage right now is with the design itself:
+## Current Status
 
-- Read the [Vision](docs/00_Vision.md) and [Architecture](docs/02_Architecture.md) docs to understand the intended shape of the system.
-- Open an issue/discussion with feedback on the pipeline design or plugin API before code is written — design-phase feedback is cheap to act on.
-- Once implementation begins, [Coding Standards](docs/04_Coding_Standards.md) will govern contributions — check back there for how to submit changes.
+**The project is currently in the architecture and design phase.**
 
-*(Contribution workflow, issue templates, and a CONTRIBUTING.md will be added once active development starts.)*
+No production implementation exists yet. All documentation and APIs are subject to change as the design is finalized.
+
+---
+
+## Planned Roadmap
+
+The implementation will follow a phased approach:
+
+1. **Phase 1 (Architecture & Design)**: Finalizing vision, requirements, core architecture, and data models. *(Current Phase)*
+2. **Phase 2 (Core Framework)**: Implementation of the Orchestrator, CLI Shell, Storage Backend, and Crypto Engine.
+3. **Phase 3 (Basic Plugins & Pipelines)**: Developing essential discovery and capture plugins for a primary OS, plus end-to-end backup/restore pipelines.
+4. **Phase 4 (Community & Extensibility)**: Publishing the Plugin SDK, expanding OS/cloud support, and integrating the AI Advisory Layer.
+
+---
+
+## Core Design Principles
+
+- **Discovery Before Backup**: Comprehensive environment analysis precedes any data capture.
+- **Intent Over Artifacts**: Captures *why* something exists to make intelligent restore decisions.
+- **Minimum Size, Maximum Recoverability**: Captures the delta between a clean OS and the environment, avoiding unnecessary file duplication.
+- **Modular Plugin Architecture**: All platform-specific knowledge lives in isolated plugins.
+- **Human Approval**: The system never overwrites or modifies a target without explicit user consent.
+- **Immutable Facts**: Discovered data is treated as immutable facts, separated from user/system judgments.
+
+---
+
+## Security
+
+AERS takes a security-first approach, recognizing that it handles the most sensitive data in an environment (keys, credentials, tokens).
+
+- **Zero-Trust Storage**: All archives are encrypted and signed.
+- **Credential Isolation**: Sensitive materials are separated into a distinct security domain.
+- **Tamper-Evident**: Full integrity verification ensures no archive modifications go unnoticed.
+- **Sandboxed Plugins**: Plugins operate with restricted permissions, lacking direct access to the network, crypto keys, or unapproved files.
+
+For full details, read the [Threat Model](docs/03_Threat_Model.md).
