@@ -39,6 +39,7 @@ The AERS project has completed **extensive, production-grade documentation**, im
 | **Configuration Manager (S17)** | Fully implemented: 5-tier merge, schema validation, business validation, source attribution, deep-copy immutability, plugin config passthrough, bulk error reporting. Tested. |
 | **Logging & Audit (S16)** | Partially implemented: zerolog wrapper with structured JSON output, level mapping, component tagging, correlation ID context, and a custom `audit` severity. Tested. |
 | **Domain model (S4 foundation)** | Implemented in `internal/model`: behavior-free, platform-neutral types for the manifest and its sections, plans/actions, archive and integrity records, plugin metadata, approvals, restore results, and verification reports. Tested for representative manifest and archive construction. |
+| **Crypto Engine (S9 foundation)** | Implemented in `internal/crypto`: Argon2id key derivation, AES-256-GCM authenticated envelopes, general/credential key-purpose separation, SHA-256 hashing, and malformed-envelope work-factor bounds. Tested. GPG signing, archive-container serialization, and subsystem integration remain unimplemented. |
 | **CLI entry point** | Skeleton `cmd/aers/main.go` — creates a logger and invokes a placeholder subsystem. Not functional. |
 | **Everything else** | Empty directories or does not exist. |
 
@@ -159,7 +160,7 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 | S6 | Planner | `internal/core` | S4, S5 |
 | S7 | Capture Engine | `internal/core` | S6, S9 |
 | S8 | Storage Backend | `internal/storage` | S9 |
-| S9 | Crypto Engine | `internal/core` | None (leaf) — **ready to implement** |
+| S9 | Crypto Engine | `internal/crypto` | Cryptographic primitives and authenticated envelope implemented. GPG signing and integration with capture/storage/restore remain. |
 | S10 | Restore Engine | `internal/core` | S2, S9 |
 | S11 | Verification Engine | `internal/core` | S3, S14 |
 | S12 | Plugin Host | `internal/plugin` | S17 (done), data model types |
@@ -237,6 +238,7 @@ None.
 |--------|---------|---------|---------|
 | `github.com/rs/zerolog` | v1.35.1 | Structured JSON logging | `internal/logger` |
 | `gopkg.in/yaml.v3` | v3.0.1 | YAML parsing with strict mode | `internal/config` |
+| `golang.org/x/crypto` | v0.55.0 | Argon2id key derivation | `internal/crypto` |
 
 ### Indirect Dependencies
 
@@ -244,14 +246,13 @@ None.
 |--------|---------|--------|
 | `github.com/mattn/go-colorable` | v0.1.14 | zerolog transitive |
 | `github.com/mattn/go-isatty` | v0.0.20 | zerolog transitive |
-| `golang.org/x/sys` | v0.29.0 | go-isatty transitive |
+| `golang.org/x/sys` | v0.47.0 | transitive dependency |
 
 ### Assessment
 
-The dependency footprint is minimal and intentional — only two direct dependencies, both well-maintained and widely used. This aligns with the offline-first, minimal-dependency philosophy.
+The dependency footprint is minimal and intentional — three direct dependencies, all well-maintained and widely used. This aligns with the offline-first, minimal-dependency philosophy.
 
 **Future dependencies to anticipate:**
-- Crypto: `golang.org/x/crypto` (for Argon2) and `crypto/aes`, `crypto/cipher` (stdlib).
 - CLI: a command framework (`cobra`, `urfave/cli`, or custom).
 - Archive format: `archive/tar`, `compress/gzip` (stdlib), or a custom format.
 - Plugin execution: `os/exec` (stdlib).
