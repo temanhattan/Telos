@@ -1,7 +1,7 @@
 # AERS — Project Status
 
 > **Status:** Active
-> **Last Updated:** 2026-07-10
+> **Last Updated:** 2026-08-19
 > **Author:** AI Engineering Review (Antigravity)
 > **Audience:** Project maintainers, future contributors, AI sessions
 > **Purpose:** Engineering dashboard — understand exactly where the project stands
@@ -29,7 +29,7 @@
 **Phase:** Foundation (Phase 1 of 4)
 **Completion Estimate:** ~8% of total V1 scope
 
-The AERS project has completed **extensive, production-grade documentation** and has begun initial implementation of the two leaf-dependency subsystems: **S17 — Configuration Manager** and **S16 — Logging & Audit**. No pipeline logic, no plugin execution, no cryptographic operations, no archive creation, and no CLI interface exist yet.
+The AERS project has completed **extensive, production-grade documentation**, implemented the foundational **S4 domain vocabulary**, and begun the two leaf-dependency subsystems: **S17 — Configuration Manager** and **S16 — Logging & Audit**. No pipeline logic, no plugin execution, no cryptographic operations, no archive creation, and no functional CLI interface exist yet.
 
 ### What exists
 
@@ -38,6 +38,7 @@ The AERS project has completed **extensive, production-grade documentation** and
 | **Design documentation** | Comprehensive. Six canonical documents (~315,000 bytes) covering vision, requirements, architecture, threat model, data model, and plugin API. One onboarding context document. Nine ADR file stubs (one populated). |
 | **Configuration Manager (S17)** | Fully implemented: 5-tier merge, schema validation, business validation, source attribution, deep-copy immutability, plugin config passthrough, bulk error reporting. Tested. |
 | **Logging & Audit (S16)** | Partially implemented: zerolog wrapper with structured JSON output, level mapping, component tagging, correlation ID context, and a custom `audit` severity. Tested. |
+| **Domain model (S4 foundation)** | Implemented in `internal/model`: behavior-free, platform-neutral types for the manifest and its sections, plans/actions, archive and integrity records, plugin metadata, approvals, restore results, and verification reports. Tested for representative manifest and archive construction. |
 | **CLI entry point** | Skeleton `cmd/aers/main.go` — creates a logger and invokes a placeholder subsystem. Not functional. |
 | **Everything else** | Empty directories or does not exist. |
 
@@ -69,7 +70,7 @@ The roadmap defined in `08_PROJECT_CONTEXT.md` §10 outlines four phases. Below 
 | Project scaffolding (module, directories) | ✅ Done | `go.mod`, package layout, empty placeholder dirs. |
 | CLI Shell (S1) — command framework | ❌ Not started | `main.go` exists but has no argument parsing. |
 | Orchestrator (S2) — pipeline skeleton | ❌ Not started | |
-| Data model Go types | ❌ Not started | Conceptual model documented in `04_Data_Model.md` but no Go structs. |
+| Data model Go types | ✅ Foundation implemented | `internal/model` now contains the behavior-free shared vocabulary. Manifest construction, sealing, persistence, and workflow logic remain unimplemented. |
 
 ### Phase 2 — Core Pipeline
 
@@ -153,7 +154,7 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 | S1 | CLI Shell | `cmd/aers` or `internal/cli` | S2 (Orchestrator) |
 | S2 | Orchestrator | `internal/core` | S3, S6, S7, S9, S10, S16, S17 (leaf deps done) |
 | S3 | Discovery Engine | `internal/core` | S12 (Plugin Host) |
-| S4 | Environment Manifest | `internal/core` | Data model Go types |
+| S4 | Environment Manifest | `internal/model` | Domain vocabulary implemented; manifest construction, sealing, and persistence remain to be implemented. |
 | S5 | Classifier | `internal/core` | S4 (Manifest) |
 | S6 | Planner | `internal/core` | S4, S5 |
 | S7 | Capture Engine | `internal/core` | S6, S9 |

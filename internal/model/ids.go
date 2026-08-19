@@ -22,3 +22,21 @@ type PlanID UUID
 
 // ArtifactID uniquely identifies an artifact within an archive.
 type ArtifactID UUID
+
+// BackupManifestID uniquely identifies an archive integrity manifest.
+type BackupManifestID UUID
+
+// RestoreResultID uniquely identifies the outcome of a restore operation.
+type RestoreResultID UUID
+
+// VerificationReportID uniquely identifies a verification report.
+type VerificationReportID UUID
+
+// ApprovalID uniquely identifies an approval-gate decision.
+type ApprovalID UUID
+
+// StorageLocationID uniquely identifies an archive storage location.
+type StorageLocationID UUID
+
+// ConfigurationProfileID uniquely identifies a persisted configuration profile.
+type ConfigurationProfileID UUID
