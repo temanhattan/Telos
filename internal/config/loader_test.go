@@ -233,8 +233,12 @@ plugins:
     timeout: 10
 `
 
-	os.WriteFile(sysFile, []byte(sysYAML), 0644)
-	os.WriteFile(userFile, []byte(userYAML), 0644)
+	if err := os.WriteFile(sysFile, []byte(sysYAML), 0644); err != nil {
+		t.Fatalf("Failed to write sys file: %v", err)
+	}
+	if err := os.WriteFile(userFile, []byte(userYAML), 0644); err != nil {
+		t.Fatalf("Failed to write user file: %v", err)
+	}
 
 	manager := NewManager()
 	profile, err := manager.Load(LoadOptions{

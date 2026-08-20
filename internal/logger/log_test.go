@@ -51,7 +51,7 @@ func TestWithContext(t *testing.T) {
 	var buf bytes.Buffer
 	logger := New(InfoLevel, &buf)
 
-	ctx := context.WithValue(context.Background(), "correlation_id", "test-correlation-id")
+	ctx := context.WithValue(context.Background(), correlationIDKey, "test-correlation-id")
 	logger = logger.WithContext(ctx)
 	logger.Info("test message")
 

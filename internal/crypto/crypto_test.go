@@ -24,7 +24,7 @@ func TestEncryptDecryptRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plaintext, err := Decrypt([]byte("correct horse battery staple"), envelope, PurposeGeneral)
+	plaintext, err := Decrypt([]byte("correct horse battery staple"), &envelope, PurposeGeneral)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestEncryptDecryptEmptyPlaintext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plaintext, err := Decrypt(passphrase, envelope, PurposeGeneral)
+	plaintext, err := Decrypt(passphrase, &envelope, PurposeGeneral)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestEncryptRejectsInvalidInput(t *testing.T) {
 
 func TestDecryptRejectsEmptyPassphrase(t *testing.T) {
 	envelope := validEnvelope(t, []byte("passphrase"))
-	if _, err := Decrypt(nil, envelope, PurposeGeneral); err == nil {
+	if _, err := Decrypt(nil, &envelope, PurposeGeneral); err == nil {
 		t.Fatal("expected decryption to fail")
 	}
 }
@@ -125,7 +125,7 @@ func TestDecryptRejectsMalformedEnvelope(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			envelope := validEnvelope(t, passphrase)
 			tc.mutate(&envelope)
-			if _, err := Decrypt(passphrase, envelope, PurposeGeneral); !errors.Is(err, ErrInvalidEnvelope) {
+			if _, err := Decrypt(passphrase, &envelope, PurposeGeneral); !errors.Is(err, ErrInvalidEnvelope) {
 				t.Fatalf("expected error wrapping %v, got %v", ErrInvalidEnvelope, err)
 			}
 		})
@@ -153,7 +153,7 @@ func TestDecryptRejectsTamperingWrongPassphraseAndPurpose(t *testing.T) {
 		{"purpose mismatch", passphrase, envelope, PurposeGeneral, ErrInvalidEnvelope},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := Decrypt(tc.passphrase, tc.envelope, tc.purpose); !errors.Is(err, tc.wrapped) {
+			if _, err := Decrypt(tc.passphrase, &tc.envelope, tc.purpose); !errors.Is(err, tc.wrapped) {
 				t.Fatalf("expected error wrapping %v, got %v", tc.wrapped, err)
 			}
 		})

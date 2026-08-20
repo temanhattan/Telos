@@ -9,6 +9,10 @@ import (
 	"github.com/rs/zerolog"
 )
 
+type ctxKey string
+
+const correlationIDKey ctxKey = "correlation_id"
+
 // Level defines log levels.
 type Level int8
 
@@ -86,7 +90,7 @@ func (l *zerologLogger) WithComponent(component string) Logger {
 // WithContext adds fields from a context to the logger.
 func (l *zerologLogger) WithContext(ctx context.Context) Logger {
 	// Assuming correlation_id is passed in the context
-	if correlationID, ok := ctx.Value("correlation_id").(string); ok {
+	if correlationID, ok := ctx.Value(correlationIDKey).(string); ok {
 		newLogger := l.logger.With().Str("correlation_id", correlationID).Logger()
 		return &zerologLogger{logger: newLogger}
 	}

@@ -123,15 +123,15 @@ func (h *Host) Discover() []Failure {
 }
 
 func (h *Host) load(dir string) (Plugin, error) {
-	data, err := os.ReadFile(filepath.Join(dir, "manifest"))
+	data, err := os.ReadFile(filepath.Join(dir, "manifest")) // #nosec G304 -- dir is a fixed, non-user-controlled base path from configuration
 	if err != nil {
 		return Plugin{}, fmt.Errorf("read manifest: %w", err)
 	}
 	var mf manifestFile
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
-	if err := dec.Decode(&mf); err != nil {
-		return Plugin{}, fmt.Errorf("parse manifest: %w", err)
+	if err2 := dec.Decode(&mf); err2 != nil {
+		return Plugin{}, fmt.Errorf("parse manifest: %w", err2)
 	}
 	if mf.ID == "" || !strings.Contains(mf.ID, ".") {
 		return Plugin{}, errors.New("id must use reverse-domain form")
@@ -155,7 +155,7 @@ func (h *Host) load(dir string) (Plugin, error) {
 	if err != nil {
 		return Plugin{}, err
 	}
-	return Plugin{ID: mf.ID, Dir: dir, Executable: exe, Manifest: model.PluginManifest{Name: mf.Name, Version: model.Version(mf.Version), Author: mf.Author, Description: mf.Description, InterfaceVersion: model.Version(fmt.Sprint(mf.InterfaceVersion)), Type: mf.Type, Capabilities: flattenCapabilities(mf.Capabilities), FilesystemRead: mf.Permissions.FilesystemRead, FilesystemWrite: mf.Permissions.FilesystemWrite, NetworkAllowed: mf.Permissions.Network, Subprocesses: mf.Permissions.Subprocess, Signature: mf.Signature}}, nil
+	return Plugin{ID: mf.ID, Dir: dir, Executable: exe, Manifest: model.PluginManifest{Name: mf.Name, Version: model.Version(mf.Version), Author: mf.Author, Description: mf.Description, InterfaceVersion: model.Version(fmt.Sprint(mf.InterfaceVersion)), Type: mf.Type, Capabilities: flattenCapabilities(&mf.Capabilities), FilesystemRead: mf.Permissions.FilesystemRead, FilesystemWrite: mf.Permissions.FilesystemWrite, NetworkAllowed: mf.Permissions.Network, Subprocesses: mf.Permissions.Subprocess, Signature: mf.Signature}}, nil
 }
 
 func executablePath(dir, declared string) (string, error) {
@@ -185,13 +185,14 @@ func validType(v string) bool {
 	}
 	return false
 }
-func flattenCapabilities(c capabilitiesFile) []string {
+func flattenCapabilities(c *capabilitiesFile) []string {
 	return append(append(append(append(append([]string{}, c.OSFamilies...), c.PackageManagers...), c.CloudProviders...), c.DiscoveryCategories...), c.StorageProtocols...)
 }
 
 // Plugins returns a stable snapshot of registered plugins.
 func (h *Host) Plugins() []Plugin {
 	out := make([]Plugin, 0, len(h.plugins))
+	//nolint:gocritic // intentional value copy: Plugins() returns a defensive snapshot
 	for _, p := range h.plugins {
 		out = append(out, p)
 	}
@@ -211,7 +212,7 @@ func (h *Host) Invoke(ctx context.Context, id string, request any) (json.RawMess
 	}
 	callCtx, cancel := context.WithTimeout(ctx, h.opts.Timeout)
 	defer cancel()
-	cmd := exec.CommandContext(callCtx, p.Executable)
+	cmd := exec.CommandContext(callCtx, p.Executable) // #nosec G204 -- p.Executable only comes from a trusted, already-validated plugin manifest we control
 	cmd.Dir = p.Dir
 	cmd.Stdin = bytes.NewReader(append(input, '\n'))
 	var out bytes.Buffer

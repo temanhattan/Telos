@@ -51,7 +51,7 @@ func (m *manager) Load(opts LoadOptions) (Profile, error) {
 		if path == "" {
 			return nil, nil
 		}
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(path) // #nosec G304 -- path is provided by explicit LoadOptions config file settings
 		if err != nil {
 			if os.IsNotExist(err) {
 				return nil, nil // Not existing is fine
@@ -90,7 +90,7 @@ func (m *manager) Load(opts LoadOptions) (Profile, error) {
 	cliOverrides := opts.CLIOverrides
 
 	// Merge all
-	merged, err := merge(base, sysMap, userMap, envOverrides, cliOverrides, sources)
+	merged, err := merge(&base, sysMap, userMap, envOverrides, cliOverrides, sources)
 	if err != nil {
 		return nil, err
 	}

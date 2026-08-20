@@ -4,8 +4,10 @@ package model
 // docs/04_Data_Model.md. Validation, serialization, and workflow behavior
 // belong to the subsystems that consume these structures.
 
+// ImportanceLevel represents how critical a detected change or anomaly is.
 type ImportanceLevel string
 
+// ImportanceLevel constants define the severity spectrum for annotations.
 const (
 	ImportanceCritical    ImportanceLevel = "critical"
 	ImportanceRecommended ImportanceLevel = "recommended"
@@ -13,23 +15,29 @@ const (
 	ImportanceTransient   ImportanceLevel = "transient"
 )
 
+// Reproducibility indicates whether an artifact can be regenerated or must be backed up.
 type Reproducibility string
 
+// Reproducibility constants specify if data can be safely discarded or must be preserved.
 const (
 	Reproducible  Reproducibility = "reproducible"
 	Irreplaceable Reproducibility = "irreplaceable"
 )
 
+// CaptureMethod defines the mechanism used to stage an artifact for backup.
 type CaptureMethod string
 
+// CaptureMethod constants represent the various ways data is extracted and staged.
 const (
 	CaptureReference CaptureMethod = "reference"
 	CaptureCopy      CaptureMethod = "copy"
 	CaptureExport    CaptureMethod = "export"
 )
 
+// OperationStatus tracks the lifecycle state of long-running core workflows.
 type OperationStatus string
 
+// OperationStatus constants define the possible states for discovery and restore tasks.
 const (
 	StatusPending   OperationStatus = "pending"
 	StatusCompleted OperationStatus = "completed"
@@ -38,24 +46,30 @@ const (
 	StatusAborted   OperationStatus = "aborted"
 )
 
+// ApprovalDecision represents a user's choice at a plan approval gate.
 type ApprovalDecision string
 
+// ApprovalDecision constants define the outcome of a user review for a generated plan.
 const (
 	ApprovalApproved ApprovalDecision = "approved"
 	ApprovalRejected ApprovalDecision = "rejected"
 	ApprovalModified ApprovalDecision = "modified"
 )
 
+// ClassificationSource indicates what subsystem or process generated an annotation.
 type ClassificationSource string
 
+// ClassificationSource constants define the origins of metadata classifications.
 const (
 	ClassificationDeterministic ClassificationSource = "deterministic"
 	ClassificationPlugin        ClassificationSource = "plugin"
 	ClassificationAI            ClassificationSource = "ai"
 )
 
+// DiffSeverity categorizes the risk associated with a state discrepancy.
 type DiffSeverity string
 
+// DiffSeverity constants define how concerning a post-restore mismatch is.
 const (
 	DiffExpected   DiffSeverity = "expected"
 	DiffAcceptable DiffSeverity = "acceptable"
@@ -63,6 +77,7 @@ const (
 	DiffCritical   DiffSeverity = "critical"
 )
 
+// Annotation is a judgment attached to discovery data without changing facts.
 // Annotation is a judgment attached to discovery data without changing facts.
 type Annotation struct {
 	Importance      ImportanceLevel
@@ -74,6 +89,7 @@ type Annotation struct {
 	Reasoning       string
 }
 
+// Platform describes the underlying operating system and hardware architecture.
 type Platform struct {
 	OSFamily     OSFamily
 	OSID         string
@@ -83,6 +99,7 @@ type Platform struct {
 	Machine      MachineProfile
 }
 
+// Package represents an installed software package and its version.
 type Package struct {
 	Manager    string
 	Name       string
@@ -92,6 +109,7 @@ type Package struct {
 	Annotation Annotation
 }
 
+// Service represents a background daemon or system service and its state.
 type Service struct {
 	Name        string
 	Supervisor  string
@@ -100,6 +118,7 @@ type Service struct {
 	Annotation  Annotation
 }
 
+// UserConfiguration tracks user-specific application configuration files.
 type UserConfiguration struct {
 	Path       string
 	Type       string
@@ -107,6 +126,7 @@ type UserConfiguration struct {
 	Annotation Annotation
 }
 
+// CredentialReference points to a credential on disk that requires special isolation.
 type CredentialReference struct {
 	Type        string
 	Path        string
@@ -115,6 +135,7 @@ type CredentialReference struct {
 	Annotation  Annotation
 }
 
+// EnvironmentVariable represents a system or user environment variable.
 type EnvironmentVariable struct {
 	Scope      string
 	Name       string
@@ -122,6 +143,7 @@ type EnvironmentVariable struct {
 	Annotation Annotation
 }
 
+// ScheduledTask describes a cron job, systemd timer, or scheduled execution.
 type ScheduledTask struct {
 	Scheduler  string
 	Schedule   string
@@ -129,6 +151,7 @@ type ScheduledTask struct {
 	Annotation Annotation
 }
 
+// NetworkConfiguration represents the system's networking state, including interfaces and rules.
 type NetworkConfiguration struct {
 	Interfaces    []NetworkInterface
 	DNSConfig     string
@@ -137,12 +160,14 @@ type NetworkConfiguration struct {
 	Annotation    Annotation
 }
 
+// NetworkInterface details a single logical or physical network connection.
 type NetworkInterface struct {
 	Name      string
 	Addresses []string
 	Gateway   string
 }
 
+// CloudMetadata tracks the instance details when running in a cloud environment.
 type CloudMetadata struct {
 	Provider      string
 	InstanceID    string
@@ -151,6 +176,7 @@ type CloudMetadata struct {
 	Annotation    Annotation
 }
 
+// UserData tracks files or directories identified as belonging to user documents.
 type UserData struct {
 	Path            string
 	SizeBytes       uint64
@@ -159,6 +185,7 @@ type UserData struct {
 	Annotation      Annotation
 }
 
+// EnvironmentManifest is the immutable record produced by discovery once sealed.
 // EnvironmentManifest is the immutable record produced by discovery once sealed.
 type EnvironmentManifest struct {
 	Metadata       EnvironmentManifestMetadata
@@ -177,6 +204,7 @@ type EnvironmentManifest struct {
 	SealedAt       *Timestamp
 }
 
+// CaptureAction defines a specific extraction task in a BackupPlan.
 type CaptureAction struct {
 	ID                  string
 	Category            string
@@ -188,16 +216,20 @@ type CaptureAction struct {
 	CredentialIsolation bool
 }
 
+// PlanExclusion documents a discovered artifact that was deliberately left out of a plan.
 type PlanExclusion struct {
 	ManifestEntryRef string
 	Reason           string
 }
+
+// PlanWarning conveys non-fatal issues or risks identified during plan generation.
 type PlanWarning struct {
 	ID       string
 	Severity string
 	Message  string
 }
 
+// BackupPlan is an orchestrator-generated, actionable plan for archiving a manifest.
 type BackupPlan struct {
 	ID                 PlanID
 	Version            Version
@@ -210,6 +242,7 @@ type BackupPlan struct {
 	Approval           *UserApproval
 }
 
+// RestoreAction defines a single, verifiable task in a restore phase.
 type RestoreAction struct {
 	ID               string
 	Type             string
@@ -220,11 +253,14 @@ type RestoreAction struct {
 	RequiresApproval bool
 }
 
+// RestorePhase groups RestoreActions into an ordered stage of execution.
 type RestorePhase struct {
 	Name    string
 	Order   uint8
 	Actions []RestoreAction
 }
+
+// RestoreConflict details an issue preventing clean restoration, such as pre-existing files.
 type RestoreConflict struct {
 	ID                  string
 	Description         string
@@ -232,6 +268,7 @@ type RestoreConflict struct {
 	Severity            string
 }
 
+// RestorePlan maps an archive's manifest to the current machine state to guide restoration.
 type RestorePlan struct {
 	ID                 PlanID
 	Version            Version
@@ -246,6 +283,7 @@ type RestorePlan struct {
 	Approval           *UserApproval
 }
 
+// CapturedArtifact tracks the status of a single item processed during an archive creation.
 type CapturedArtifact struct {
 	ID                  ArtifactID
 	PlanActionID        string
@@ -261,12 +299,15 @@ type CapturedArtifact struct {
 	Status              OperationStatus
 }
 
+// BackupManifestEntry records the cryptographic hash and size of a staged artifact.
 type BackupManifestEntry struct {
 	ArtifactID   ArtifactID
 	RelativePath string
 	Hash         string
 	SizeBytes    uint64
 }
+
+// BackupManifest serves as the canonical inventory of an archive's contents.
 type BackupManifest struct {
 	ID            BackupManifestID
 	ArchiveID     ArchiveID
@@ -276,6 +317,7 @@ type BackupManifest struct {
 	SealedAt      Timestamp
 }
 
+// Archive describes a completed, encrypted backup payload and its storage location.
 type Archive struct {
 	ID               ArchiveID
 	CreatedAt        Timestamp
@@ -291,6 +333,7 @@ type Archive struct {
 	StorageLocations []StorageLocation
 }
 
+// StorageLocation identifies a remote or local destination where an archive is persisted.
 type StorageLocation struct {
 	ID         StorageLocationID
 	Backend    string
@@ -298,6 +341,7 @@ type StorageLocation struct {
 	CreatedAt  Timestamp
 }
 
+// DiscoveryResult summarizes the outcome of a single plugin's discovery phase.
 type DiscoveryResult struct {
 	Category       string
 	SourcePluginID PluginID
@@ -307,6 +351,7 @@ type DiscoveryResult struct {
 	Duration       Timestamp
 }
 
+// ClassificationResult encapsulates an annotation applied to a manifest entry.
 type ClassificationResult struct {
 	ManifestID     ManifestID
 	EntryReference string
@@ -314,17 +359,22 @@ type ClassificationResult struct {
 	CreatedAt      Timestamp
 }
 
+// RestoreActionOutcome tracks the success or failure of a specific restore action.
 type RestoreActionOutcome struct {
 	ActionID     string
 	Status       OperationStatus
 	Error        string
 	UserResponse string
 }
+
+// RestoreCheckpoint enables resuming a partially completed restore plan.
 type RestoreCheckpoint struct {
 	LastSuccessfulActionID string
 	Resumable              bool
 	UpdatedAt              Timestamp
 }
+
+// RestoreResult records the complete execution history of a RestorePlan.
 type RestoreResult struct {
 	ID          RestoreResultID
 	PlanID      PlanID
@@ -336,6 +386,7 @@ type RestoreResult struct {
 	Checkpoint  RestoreCheckpoint
 }
 
+// DiffEntry describes a specific difference found during verification.
 type DiffEntry struct {
 	Section  string
 	Change   string
@@ -343,6 +394,8 @@ type DiffEntry struct {
 	After    any
 	Severity DiffSeverity
 }
+
+// VerificationReport summarizes discrepancies between the expected and actual state.
 type VerificationReport struct {
 	ID                 VerificationReportID
 	OriginalManifestID ManifestID
@@ -353,6 +406,7 @@ type VerificationReport struct {
 	CreatedAt          Timestamp
 }
 
+// UserApproval records the authorization granted to a plan before execution.
 type UserApproval struct {
 	ID            ApprovalID
 	PlanID        PlanID
@@ -362,10 +416,13 @@ type UserApproval struct {
 	Modifications []string
 }
 
+// Plugin represents a loaded, validated plugin within the system.
 type Plugin struct {
 	ID       PluginID
 	Manifest PluginManifest
 }
+
+// PluginManifest contains the static metadata parsed from a plugin's definition.
 type PluginManifest struct {
 	Name             string
 	Version          Version
@@ -383,6 +440,7 @@ type PluginManifest struct {
 	Signature        string
 }
 
+// ConfigurationProfile represents a loaded instance of the system configuration.
 type ConfigurationProfile struct {
 	ID            ConfigurationProfileID
 	SchemaVersion Version

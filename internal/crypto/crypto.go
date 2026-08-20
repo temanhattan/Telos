@@ -103,7 +103,7 @@ func Encrypt(passphrase, plaintext []byte, purpose KeyPurpose, params KDFParams)
 }
 
 // Decrypt authenticates the envelope before returning plaintext.
-func Decrypt(passphrase []byte, envelope Envelope, expectedPurpose KeyPurpose) ([]byte, error) {
+func Decrypt(passphrase []byte, envelope *Envelope, expectedPurpose KeyPurpose) ([]byte, error) {
 	if len(passphrase) == 0 {
 		return nil, errors.New("passphrase cannot be empty")
 	}
@@ -127,7 +127,7 @@ func Decrypt(passphrase []byte, envelope Envelope, expectedPurpose KeyPurpose) (
 	return plaintext, nil
 }
 
-func validateEnvelope(e Envelope, expected KeyPurpose) error {
+func validateEnvelope(e *Envelope, expected KeyPurpose) error {
 	if e.Version != EnvelopeVersion || e.Algorithm != AES256GCM || !validPurpose(e.Purpose) || e.Purpose != expected || len(e.Salt) != saltLength {
 		return ErrInvalidEnvelope
 	}

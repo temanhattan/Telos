@@ -88,11 +88,12 @@ func cloneMap(m map[string]any) map[string]any {
 	}
 	cpy := make(map[string]any)
 	for k, v := range m {
-		if vMap, ok := v.(map[string]any); ok {
-			cpy[k] = cloneMap(vMap)
-		} else if vSlice, ok := v.([]any); ok {
-			cpy[k] = cloneSlice(vSlice)
-		} else {
+		switch v := v.(type) {
+		case map[string]any:
+			cpy[k] = cloneMap(v)
+		case []any:
+			cpy[k] = cloneSlice(v)
+		default:
 			cpy[k] = v
 		}
 	}
@@ -105,11 +106,12 @@ func cloneSlice(s []any) []any {
 	}
 	cpy := make([]any, len(s))
 	for i, v := range s {
-		if vMap, ok := v.(map[string]any); ok {
-			cpy[i] = cloneMap(vMap)
-		} else if vSlice, ok := v.([]any); ok {
-			cpy[i] = cloneSlice(vSlice)
-		} else {
+		switch v := v.(type) {
+		case map[string]any:
+			cpy[i] = cloneMap(v)
+		case []any:
+			cpy[i] = cloneSlice(v)
+		default:
 			cpy[i] = v
 		}
 	}

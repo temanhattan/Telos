@@ -9,16 +9,16 @@ import (
 
 // merge applies multiple configuration sources into a single Config struct,
 // while recording the source of each field.
-func merge(base Config, sysMap, userMap, envOverrides, cliOverrides map[string]any, sources map[string]Source) (Config, error) {
+func merge(base *Config, sysMap, userMap, envOverrides, cliOverrides map[string]any, sources map[string]Source) (Config, error) {
 	var merged map[string]any
 
 	baseBytes, err := yaml.Marshal(base)
 	if err != nil {
-		return base, err
+		return *base, err
 	}
 
-	if err := yaml.Unmarshal(baseBytes, &merged); err != nil {
-		return base, err
+	if err2 := yaml.Unmarshal(baseBytes, &merged); err2 != nil {
+		return *base, err2
 	}
 
 	// Track baseline defaults
@@ -33,7 +33,7 @@ func merge(base Config, sysMap, userMap, envOverrides, cliOverrides map[string]a
 	// Marshal the merged map back to YAML
 	mergedBytes, err := yaml.Marshal(merged)
 	if err != nil {
-		return base, err
+		return *base, err
 	}
 
 	// Unmarshal back to Config, using strict mode to catch unknown fields
@@ -41,7 +41,7 @@ func merge(base Config, sysMap, userMap, envOverrides, cliOverrides map[string]a
 	decoder := yaml.NewDecoder(bytes.NewReader(mergedBytes))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(&finalConfig); err != nil {
-		return base, fmt.Errorf("strict schema validation failed: %w", err)
+		return *base, fmt.Errorf("strict schema validation failed: %w", err)
 	}
 
 	return finalConfig, nil
