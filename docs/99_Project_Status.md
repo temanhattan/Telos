@@ -1,7 +1,7 @@
 # AERS — Project Status
 
 > **Status:** Active
-> **Last Updated:** 2026-08-19
+> **Last Updated:** 2026-08-20
 > **Author:** AI Engineering Review (Antigravity)
 > **Audience:** Project maintainers, future contributors, AI sessions
 > **Purpose:** Engineering dashboard — understand exactly where the project stands
@@ -27,9 +27,9 @@
 ## 1. Overall Progress
 
 **Phase:** Foundation (Phase 1 of 4)
-**Completion Estimate:** ~8% of total V1 scope
+**Completion Estimate:** ~10% of total V1 scope
 
-The AERS project has completed **extensive, production-grade documentation**, implemented the foundational **S4 domain vocabulary**, and begun the two leaf-dependency subsystems: **S17 — Configuration Manager** and **S16 — Logging & Audit**. No pipeline logic, no plugin execution, no cryptographic operations, no archive creation, and no functional CLI interface exist yet.
+The AERS project has completed **extensive, production-grade documentation**, implemented the foundational **S4 domain vocabulary** and **S9 cryptographic primitives**, and now has a functional **S12 Plugin Host skeleton** alongside **S17 Configuration Manager** and **S16 Logging & Audit** foundations. Pipeline orchestration, archive creation, and the functional CLI remain unimplemented.
 
 ### What exists
 
@@ -40,6 +40,7 @@ The AERS project has completed **extensive, production-grade documentation**, im
 | **Logging & Audit (S16)** | Partially implemented: zerolog wrapper with structured JSON output, level mapping, component tagging, correlation ID context, and a custom `audit` severity. Tested. |
 | **Domain model (S4 foundation)** | Implemented in `internal/model`: behavior-free, platform-neutral types for the manifest and its sections, plans/actions, archive and integrity records, plugin metadata, approvals, restore results, and verification reports. Tested for representative manifest and archive construction. |
 | **Crypto Engine (S9 foundation)** | Implemented in `internal/crypto`: Argon2id key derivation, AES-256-GCM authenticated envelopes, general/credential key-purpose separation, SHA-256 hashing, and malformed-envelope work-factor bounds. Tested. GPG signing, archive-container serialization, and subsystem integration remain unimplemented. |
+| **Plugin Host (S12 skeleton)** | Implemented in `internal/plugin`: directory scanning, strict manifest parsing, interface/type/permission validation, duplicate-ID isolation, stable registration snapshots, and bounded timed JSON subprocess invocation. Signature verification, OS-level sandbox enforcement, and capability-index dispatch remain unimplemented. |
 | **CLI entry point** | Skeleton `cmd/aers/main.go` — creates a logger and invokes a placeholder subsystem. Not functional. |
 | **Everything else** | Empty directories or does not exist. |
 
@@ -50,7 +51,7 @@ The AERS project has completed **extensive, production-grade documentation**, im
 - No Discovery Engine (S3), Manifest (S4), Classifier (S5), or Planner (S6).
 - No Capture Engine (S7), Storage Backend (S8), or Crypto Engine (S9).
 - No Restore Engine (S10), Verification Engine (S11), or Diff Engine (S14).
-- No Plugin Host (S12) or AI Advisory Layer (S13).
+- No AI Advisory Layer (S13); Plugin Host (S12) skeleton is implemented but not yet integrated with Discovery.
 - No Scheduler (S15).
 - No plugin implementations of any type.
 - No archive format definition or implementation.
@@ -84,7 +85,7 @@ The roadmap defined in `08_PROJECT_CONTEXT.md` §10 outlines four phases. Below 
 | Capture Engine (S7) | ❌ Not started |
 | Crypto Engine (S9) | ❌ Not started |
 | Storage Backend (S8) | ❌ Not started |
-| Plugin Host (S12) | ❌ Not started |
+| Plugin Host (S12) | 🟡 Skeleton implemented | Directory scanning, manifest validation, registration, and bounded subprocess protocol are implemented; trust verification, sandbox enforcement, and capability negotiation remain. |
 | Restore Engine (S10) | ❌ Not started |
 | Verification Engine (S11) | ❌ Not started |
 
@@ -140,6 +141,7 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 | ID | Subsystem | Package | Files | Lines | Tests | Test Coverage |
 |----|-----------|---------|-------|-------|-------|--------------|
 | **S17** | Configuration Manager | `internal/config` | 8 | ~558 | 5 test cases in `loader_test.go` (260 lines) | Moderate — covers merge, strict decoding, plugin keys, validation accumulation, immutability, nested merge. Missing: env_mapper tests, business_validation edge cases, error type tests. |
+| **S12** | Plugin Host | `internal/plugin` | 1 source + 1 test | — | 2 | Core registration and subprocess protocol coverage; trust, sandbox, and dispatch integration pending. |
 | **S16** | Logging & Audit | `internal/logger` | 1 | 120 | 5 test cases in `log_test.go` (123 lines) | Moderate — covers level creation, component tagging, context correlation, log levels, audit severity, JSON output. Missing: nil writer edge case, concurrent usage. |
 
 ### Placeholder / Skeleton
@@ -163,7 +165,7 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 | S9 | Crypto Engine | `internal/crypto` | Cryptographic primitives and authenticated envelope implemented. GPG signing and integration with capture/storage/restore remain. |
 | S10 | Restore Engine | `internal/core` | S2, S9 |
 | S11 | Verification Engine | `internal/core` | S3, S14 |
-| S12 | Plugin Host | `internal/plugin` | S17 (done), data model types |
+| S12 | Plugin Host | `internal/plugin` | S17 (done), data model types | 
 | S13 | AI Advisory Layer | `internal/core` | S4, S5 |
 | S14 | Diff Engine | `internal/core` | S4 |
 | S15 | Scheduler | `internal/core` | S2 |
@@ -334,7 +336,7 @@ logger.Error(err, "Plugin timed out")
 
 - Run `aers backup`, `aers restore`, `aers discover`, or any CLI command.
 - Discover, classify, plan, capture, encrypt, store, or restore anything.
-- Load, validate, or execute any plugin.
+- Integrate plugin discovery with the Discovery Engine or execute a full backup pipeline.
 - Create, read, or verify any backup archive.
 
 ---
@@ -349,22 +351,22 @@ The following sequence respects the dependency graph defined in `02_Architecture
 |----------|------|-----------|-----------|
 | 1 | **Define Go types for core data model entities** | S4 | Every subsystem depends on the shared vocabulary: `EnvironmentManifest`, `BackupPlan`, `RestorePlan`, `MachineProfile`, `DiscoveryResult`, etc. These structs must exist before any pipeline code can be written. |
 | 2 | **Implement Crypto Engine (S9)** | S9 | Leaf dependency (depends on nothing internal). Required by Capture Engine, Storage Backend, and Restore Engine. AES-256-GCM encryption, SHA-256 hashing, Argon2 KDF. |
-| 3 | **Implement Plugin Host skeleton (S12)** | S12 | Required by Discovery Engine, Capture Engine, Restore Engine. Start with: directory scanning, manifest loading, subprocess spawning, JSON stdin/stdout protocol, timeout enforcement. Defer trust model and sandbox enforcement to a later iteration. |
-| 4 | **Implement CLI Shell framework (S1)** | S1 | Required for any user-facing functionality. Choose and integrate a command framework. Define top-level commands: `backup`, `restore`, `discover`, `verify`, `diff`, `config show`. |
+| 3 | **Implement CLI Shell framework (S1)** | S1 | Required for any user-facing functionality. Choose and integrate a command framework. Define top-level commands: `backup`, `restore`, `discover`, `verify`, `diff`, `config show`. |
+| 4 | **Implement Discovery Engine (S3)** | S3 | Consume the Plugin Host registry and aggregate isolated plugin responses into discovery results. |
 | 5 | **Set up CI/CD pipeline** | — | `go test ./...`, `go vet`, linting. Prevent regressions before codebase grows. |
 
 ### Near-Term (Core Pipeline — Phase 2)
 
 | Priority | Task | Subsystem |
 |----------|------|-----------|
-| 6 | Implement Discovery Engine (S3) | S3 |
-| 7 | Implement Manifest construction and immutability | S4 |
-| 8 | Implement Classifier with deterministic rules | S5 |
-| 9 | Implement Planner (backup plan generation) | S6 |
-| 10 | Implement Orchestrator (backup pipeline coordination) | S2 |
-| 11 | Build first Discovery plugin (e.g., APT packages on Ubuntu) | `plugins/` |
-| 12 | Implement Capture Engine (S7) | S7 |
-| 13 | Implement Storage Backend — local filesystem (S8) | S8 |
+| 6 | Implement Manifest construction and immutability | S4 |
+| 7 | Implement Classifier with deterministic rules | S5 |
+| 8 | Implement Planner (backup plan generation) | S6 |
+| 9 | Implement Orchestrator (backup pipeline coordination) | S2 |
+| 10 | Build first Discovery plugin (e.g., APT packages on Ubuntu) | `plugins/` |
+| 11 | Implement Capture Engine (S7) | S7 |
+| 12 | Implement Storage Backend — local filesystem (S8) | S8 |
+| 13 | Integrate GPG signing and archive-container serialization | S9/S8 |
 
 ### Debt Paydown (Parallel)
 
@@ -379,4 +381,4 @@ The following sequence respects the dependency graph defined in `02_Architecture
 
 ---
 
-> **This document is a snapshot.** It reflects the state of the project as of 2026-07-10. Update it after each significant implementation milestone.
+> **This document is a snapshot.** It reflects the state of the project as of 2026-08-20. Update it after each significant implementation milestone.
