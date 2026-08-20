@@ -18,6 +18,7 @@ import (
 
 	log "AERS/internal/logger"
 	"AERS/internal/model"
+
 	"gopkg.in/yaml.v3"
 )
 

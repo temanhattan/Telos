@@ -10,11 +10,11 @@ package model
 // piece of hardware. It carries no business logic; interpretation and
 // matching are the responsibility of higher-level services.
 type MachineFingerprint struct {
-	ID               MachineID
-	BIOSUUIDRaw      string
+	ID                MachineID
+	BIOSUUIDRaw       string
 	MotherboardSerial string
-	SystemSerial     string
-	PrimaryMAC       string
-	CPUIdentifier    string
-	CreatedAt        Timestamp
+	SystemSerial      string
+	PrimaryMAC        string
+	CPUIdentifier     string
+	CreatedAt         Timestamp
 }

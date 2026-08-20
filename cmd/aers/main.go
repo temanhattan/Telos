@@ -2,7 +2,7 @@ package main
 
 import (
 	"AERS/core"
-	"AERS/internal/logger"
+	log "AERS/internal/logger"
 	"os"
 )
 

@@ -30,7 +30,7 @@ func resolveEnvOverrides() map[string]any {
 		if len(keyParts) == 2 {
 			domain := keyParts[0]
 			param := keyParts[1]
-			
+
 			if _, ok := overrides[domain]; !ok {
 				overrides[domain] = make(map[string]any)
 			}

@@ -62,7 +62,7 @@ func validateSchema(cfg *Config) error {
 	// Logging
 	validLogLevel := false
 	for _, level := range []string{"debug", "info", "warn", "error", "audit"} {
-		if strings.ToLower(cfg.Logging.Level) == level {
+		if strings.EqualFold(cfg.Logging.Level, level) {
 			validLogLevel = true
 			break
 		}

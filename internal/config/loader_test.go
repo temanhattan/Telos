@@ -167,7 +167,7 @@ func TestValidationFailuresAccumulate(t *testing.T) {
 	if !ok {
 		t.Fatalf("Expected error of type *ConfigError")
 	}
-	
+
 	if len(configErr.Errors) != 3 {
 		t.Fatalf("Expected exactly 3 validation errors, got %d", len(configErr.Errors))
 	}

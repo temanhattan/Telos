@@ -1,8 +1,6 @@
 package core
 
-import (
-	"AERS/internal/logger"
-)
+import "log"
 
 // SomeSubsystem represents a subsystem that requires a logger.
 type SomeSubsystem struct {
