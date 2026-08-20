@@ -36,6 +36,7 @@ func NewManager() Manager {
 	return &manager{}
 }
 
+// Current returns the active configuration profile.
 func (m *manager) Current() Profile {
 	return m.current
 }
@@ -71,13 +72,13 @@ func (m *manager) Load(opts LoadOptions) (Profile, error) {
 	// 2. System config
 	sysMap, err := readYaml(opts.SystemConfigFile)
 	if err != nil {
-		return nil, &ConfigError{Errors: []ValidationError{{Field: "system_config", Message: "failed to read system config", Value: err}}}
+		return nil, &Error{Errors: []ValidationError{{Field: "system_config", Message: "failed to read system config", Value: err}}}
 	}
 
 	// 3. User config
 	userMap, err := readYaml(opts.UserConfigFile)
 	if err != nil {
-		return nil, &ConfigError{Errors: []ValidationError{{Field: "user_config", Message: "failed to read user config", Value: err}}}
+		return nil, &Error{Errors: []ValidationError{{Field: "user_config", Message: "failed to read user config", Value: err}}}
 	}
 
 	// 4. Environment

@@ -26,15 +26,15 @@ func (e *ValidationError) Error() string {
 	return fmt.Sprintf("config validation: %s: %s", e.Field, e.Message)
 }
 
-// ConfigError represents one or more configuration validation failures.
+// Error represents one or more configuration validation failures.
 // It aggregates all errors discovered during validation so the user can
 // fix them all at once rather than one at a time (FR-11.4).
-type ConfigError struct {
+type Error struct {
 	Errors []ValidationError
 }
 
 // Error implements the error interface.
-func (e *ConfigError) Error() string {
+func (e *Error) Error() string {
 	if len(e.Errors) == 0 {
 		return "config validation: no errors"
 	}
@@ -50,7 +50,7 @@ func (e *ConfigError) Error() string {
 }
 
 // HasErrors returns true if there are any validation errors.
-func (e *ConfigError) HasErrors() bool {
+func (e *Error) HasErrors() bool {
 	return len(e.Errors) > 0
 }
 

@@ -22,6 +22,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// SupportedInterfaceVersion specifies the plugin interface version supported by this host.
 const SupportedInterfaceVersion = 1
 const defaultOutputLimit int64 = 4 << 20
 
@@ -74,11 +75,13 @@ type permissionsFile struct {
 	Subprocess      []string `yaml:"subprocess"`
 }
 
+// Host manages the discovery, loading, and invocation of plugins.
 type Host struct {
 	opts    Options
 	plugins map[string]Plugin
 }
 
+// New creates a new Host with the provided options.
 func New(opts Options) *Host {
 	if opts.Timeout <= 0 {
 		opts.Timeout = 5 * time.Minute

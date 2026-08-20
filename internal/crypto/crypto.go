@@ -15,22 +15,28 @@ import (
 )
 
 const (
-	EnvelopeVersion uint8  = 1
-	AES256GCM              = "aes-256-gcm"
-	keyLength       uint32 = 32
-	saltLength             = 16
+	// EnvelopeVersion defines the current version of the encrypted envelope.
+	EnvelopeVersion uint8 = 1
+	// AES256GCM defines the authenticated encryption algorithm used.
+	AES256GCM         = "aes-256-gcm"
+	keyLength  uint32 = 32
+	saltLength        = 16
 )
 
 var (
+	// ErrInvalidEnvelope is returned when the encrypted envelope is malformed or invalid.
 	ErrInvalidEnvelope = errors.New("invalid encrypted envelope")
-	ErrAuthentication  = errors.New("ciphertext authentication failed")
+	// ErrAuthentication is returned when ciphertext authentication fails.
+	ErrAuthentication = errors.New("ciphertext authentication failed")
 )
 
 // KeyPurpose makes derived material domain-specific within a single passphrase.
 type KeyPurpose string
 
 const (
-	PurposeGeneral    KeyPurpose = "general"
+	// PurposeGeneral is the default key purpose for general encryption.
+	PurposeGeneral KeyPurpose = "general"
+	// PurposeCredential is used for encrypting sensitive credentials.
 	PurposeCredential KeyPurpose = "credential"
 )
 
@@ -41,6 +47,7 @@ type KDFParams struct {
 	Threads   uint8
 }
 
+// DefaultKDFParams returns the default recommended parameters for key derivation.
 func DefaultKDFParams() KDFParams {
 	return KDFParams{MemoryKiB: 65536, Time: 3, Threads: 1}
 }

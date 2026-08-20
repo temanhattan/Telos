@@ -4,6 +4,7 @@ import (
 	"time"
 )
 
+// SchemaVersion defines the current expected configuration schema version.
 const SchemaVersion = "1.0"
 
 // Metadata contains information about the loaded configuration profile.
@@ -118,6 +119,7 @@ func cloneSlice(s []any) []any {
 	return cpy
 }
 
+// Source returns the source mapping for a given configuration path.
 func (p *profile) Source(path string) Source {
 	if src, ok := p.sources[path]; ok {
 		return src
@@ -125,6 +127,7 @@ func (p *profile) Source(path string) Source {
 	return SourceDefault
 }
 
+// Metadata returns the base metadata configuration.
 func (p *profile) Metadata() Metadata {
 	return Metadata{
 		SchemaVersion: p.schemaVersion,
@@ -133,6 +136,7 @@ func (p *profile) Metadata() Metadata {
 	}
 }
 
+// PluginConfig returns the configuration mapping for a specific plugin.
 func (p *profile) PluginConfig(pluginID string) map[string]any {
 	if p.config.Plugins == nil {
 		return nil

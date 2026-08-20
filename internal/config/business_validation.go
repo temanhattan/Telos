@@ -1,3 +1,4 @@
+// Package config provides configuration parsing, validation, and merging.
 package config
 
 // validateBusiness applies semantic checks to a structurally valid config.

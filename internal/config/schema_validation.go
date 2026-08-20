@@ -72,7 +72,7 @@ func validateSchema(cfg *Config) error {
 	}
 
 	if len(errs) > 0 {
-		return &ConfigError{Errors: errs}
+		return &Error{Errors: errs}
 	}
 	return nil
 }

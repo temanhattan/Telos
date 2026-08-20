@@ -1,3 +1,4 @@
+// Package log provides a structured logging interface using zerolog.
 package log
 
 import (

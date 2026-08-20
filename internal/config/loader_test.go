@@ -163,9 +163,9 @@ func TestValidationFailuresAccumulate(t *testing.T) {
 		t.Fatalf("Expected load to fail due to schema validation")
 	}
 
-	configErr, ok := err.(*ConfigError)
+	configErr, ok := err.(*Error)
 	if !ok {
-		t.Fatalf("Expected error of type *ConfigError")
+		t.Fatalf("Expected error of type *Error")
 	}
 
 	if len(configErr.Errors) != 3 {
