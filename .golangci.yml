@@ -15,8 +15,6 @@ linters:
     # Security
     - gosec
     # Style & correctness
-    - gofmt
-    - goimports
     - misspell
     - unconvert
     - gocritic
@@ -24,7 +22,11 @@ linters:
     # Bug detection
     - bodyclose
     - nilerr
-    - exportloopref
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
 
 linters-settings:
   govet:
