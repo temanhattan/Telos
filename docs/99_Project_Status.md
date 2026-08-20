@@ -1,7 +1,7 @@
 # AERS — Project Status
 
 > **Status:** Active
-> **Last Updated:** 2026-08-20
+> **Last Updated:** 2026-08-20 (audit corrections applied)
 > **Author:** AI Engineering Review (Antigravity)
 > **Audience:** Project maintainers, future contributors, AI sessions
 > **Purpose:** Engineering dashboard — understand exactly where the project stands
@@ -35,7 +35,7 @@ The AERS project has completed **extensive, production-grade documentation**, im
 
 | Category | State |
 |----------|-------|
-| **Design documentation** | Comprehensive. Six canonical documents (~315,000 bytes) covering vision, requirements, architecture, threat model, data model, and plugin API. One onboarding context document. Nine ADR file stubs (one populated). |
+| **Design documentation** | Comprehensive. Six canonical documents (~315,000 bytes) covering vision, requirements, architecture, threat model, data model, and plugin API. One onboarding context document. Ten ADR files (two populated: ADR-0009 Configuration Manager, ADR-0010 Crypto Envelope). |
 | **Configuration Manager (S17)** | Fully implemented: 5-tier merge, schema validation, business validation, source attribution, deep-copy immutability, plugin config passthrough, bulk error reporting. Tested. |
 | **Logging & Audit (S16)** | Partially implemented: zerolog wrapper with structured JSON output, level mapping, component tagging, correlation ID context, and a custom `audit` severity. Tested. |
 | **Domain model (S4 foundation)** | Implemented in `internal/model`: behavior-free, platform-neutral types for the manifest and its sections, plans/actions, archive and integrity records, plugin metadata, approvals, restore results, and verification reports. Tested for representative manifest and archive construction. |
@@ -67,7 +67,7 @@ The roadmap defined in `08_PROJECT_CONTEXT.md` §10 outlines four phases. Below 
 
 | Milestone | Status | Notes |
 |-----------|--------|-------|
-| Configuration Manager (S17) — full implementation | ✅ Done | 8 source files, 1 ADR, 5 unit test cases. |
+| Configuration Manager (S17) — full implementation | ✅ Done | 8 source files, 1 ADR, 6 unit test cases. |
 | Logging & Audit (S16) — core implementation | 🟡 Partial | Logger wrapper exists; audit-level logging works. Missing: file output, log rotation, append-only guarantees, audit trail format. |
 | Project scaffolding (module, directories) | ✅ Done | `go.mod`, package layout, empty placeholder dirs. |
 | CLI Shell (S1) — command framework | ❌ Not started | `main.go` exists but has no argument parsing. |
@@ -140,7 +140,7 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 
 | ID | Subsystem | Package | Files | Lines | Tests | Test Coverage |
 |----|-----------|---------|-------|-------|-------|--------------|
-| **S17** | Configuration Manager | `internal/config` | 8 | ~558 | 5 test cases in `loader_test.go` (260 lines) | Moderate — covers merge, strict decoding, plugin keys, validation accumulation, immutability, nested merge. Missing: env_mapper tests, business_validation edge cases, error type tests. |
+| **S17** | Configuration Manager | `internal/config` | 8 | ~558 | 6 test cases in `loader_test.go` (260 lines) | Moderate — covers merge, strict decoding, plugin keys, validation accumulation, immutability, nested merge. Missing: env_mapper tests, business_validation edge cases, error type tests. |
 | **S12** | Plugin Host | `internal/plugin` | 1 source + 1 test | — | 2 | Core registration and subprocess protocol coverage; trust, sandbox, and dispatch integration pending. |
 | **S16** | Logging & Audit | `internal/logger` | 1 | 120 | 5 test cases in `log_test.go` (123 lines) | Moderate — covers level creation, component tagging, context correlation, log levels, audit severity, JSON output. Missing: nil writer edge case, concurrent usage. |
 
@@ -185,10 +185,11 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 | ADR-0007 | Subprocess Plugin Execution | `ADRs/ADR-0007-Subprocess-Plugin-Execution.md` | ❌ **Empty** |
 | ADR-0008 | Full Backup V1 | `ADRs/ADR-0008-Full-Backup-V1.md` | ❌ **Empty** |
 | ADR-0009 | Configuration Manager | `ADRs/ADR-0009-Configuration-Manager.md` | ✅ **Complete** — 91 lines, well-structured with Context, Decision, Consequences, Alternatives Considered, Implementation Notes |
+| ADR-0010 | Crypto Envelope | `ADRs/ADR-0010-Crypto-Envelope.md` | ✅ **Complete** — 47 lines, covers Argon2id + AES-256-GCM envelope design, key-purpose separation, and KDF parameter bounds |
 
 ### Assessment
 
-8 of 9 ADR files are empty stubs. The decisions they represent *are* documented in the canonical design documents, but the ADR format (Context → Decision → Consequences → Alternatives Considered) is not captured. ADR-0009 is the model to follow for backfilling the others.
+8 of 10 ADR files are empty stubs. The decisions they represent *are* documented in the canonical design documents, but the ADR format (Context → Decision → Consequences → Alternatives Considered) is not captured. ADR-0009 and ADR-0010 are the models to follow for backfilling the others.
 
 ---
 
@@ -198,8 +199,10 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 
 | Package | Test File | Test Count | Passing | Notes |
 |---------|-----------|------------|---------|-------|
-| `internal/config` | `loader_test.go` | 5 | Assumed ✅ (not run this session) | Tests: full merge pipeline, strict decoding rejection, plugin key acceptance, validation accumulation, profile immutability, nested merge. |
-| `internal/logger` | `log_test.go` | 5 | Assumed ✅ (not run this session) | Tests: level creation, component tagging, context correlation, log levels, audit severity, JSON output. |
+| `internal/config` | `loader_test.go` | 6 | ✅ Verified passing | Tests: full merge pipeline, strict decoding rejection, plugin key acceptance, validation accumulation, profile immutability, nested merge. |
+| `internal/logger` | `log_test.go` | 6 | ✅ Verified passing | Tests: level creation, component tagging, context correlation, log levels, audit severity, JSON output. |
+| `internal/model` | `entities_test.go` | 2 | ✅ Verified passing | Tests: manifest discovery section retention, archive identity and storage field retention. |
+| `internal/plugin` | `host_test.go` | 2 | ✅ 1 pass, 1 skip (Windows) | Tests: discover registers valid and skips invalid, invoke uses JSON protocol (skipped on Windows — shell fixture incompatibility). |
 
 ### Integration Tests
 
@@ -239,8 +242,8 @@ None.
 | Module | Version | Purpose | Used By |
 |--------|---------|---------|---------|
 | `github.com/rs/zerolog` | v1.35.1 | Structured JSON logging | `internal/logger` |
-| `gopkg.in/yaml.v3` | v3.0.1 | YAML parsing with strict mode | `internal/config` |
 | `golang.org/x/crypto` | v0.55.0 | Argon2id key derivation | `internal/crypto` |
+| `gopkg.in/yaml.v3` | v3.0.1 | YAML parsing with strict mode | `internal/config` |
 
 ### Indirect Dependencies
 
@@ -248,7 +251,7 @@ None.
 |--------|---------|--------|
 | `github.com/mattn/go-colorable` | v0.1.14 | zerolog transitive |
 | `github.com/mattn/go-isatty` | v0.0.20 | zerolog transitive |
-| `golang.org/x/sys` | v0.47.0 | transitive dependency |
+| `golang.org/x/sys` | v0.47.0 | x/crypto + zerolog transitive |
 
 ### Assessment
 
