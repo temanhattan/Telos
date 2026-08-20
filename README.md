@@ -57,9 +57,9 @@ Data flows through linear, staged pipelines where each stage produces well-defin
 
 ## Current Status
 
-**The project is currently in the architecture and design phase.**
+**The project is currently in Phase 2 (Core Framework) of development.**
 
-No production implementation exists yet. All documentation and APIs are subject to change as the design is finalized.
+Initial architecture and data models are complete. Active implementation is underway for foundational systems, including the configuration manager, cryptographic engine, plugin host, and logging infrastructure.
 
 ---
 
@@ -67,8 +67,8 @@ No production implementation exists yet. All documentation and APIs are subject 
 
 The implementation will follow a phased approach:
 
-1. **Phase 1 (Architecture & Design)**: Finalizing vision, requirements, core architecture, and data models. *(Current Phase)*
-2. **Phase 2 (Core Framework)**: Implementation of the Orchestrator, CLI Shell, Storage Backend, and Crypto Engine.
+1. **Phase 1 (Architecture & Design)**: Finalizing vision, requirements, core architecture, and data models. *(Completed)*
+2. **Phase 2 (Core Framework)**: Implementation of the Orchestrator, CLI Shell, Storage Backend, and Crypto Engine. *(Current Phase)*
 3. **Phase 3 (Basic Plugins & Pipelines)**: Developing essential discovery and capture plugins for a primary OS, plus end-to-end backup/restore pipelines.
 4. **Phase 4 (Community & Extensibility)**: Publishing the Plugin SDK, expanding OS/cloud support, and integrating the AI Advisory Layer.
 
