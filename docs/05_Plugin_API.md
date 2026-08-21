@@ -97,6 +97,8 @@ A plugin crash, timeout, or malformed response results in a logged error and a p
 
 Plugins operate within a declared permission scope. They cannot access the filesystem outside their declared paths, cannot make network requests unless explicitly authorized, cannot invoke arbitrary subprocesses, and cannot access cryptographic material or other core subsystems directly.
 
+> **V1 Implementation:** V1 provides OS-level enforcement on Linux using Landlock LSM, seccomp-BPF, and process namespaces (see §Sandbox and Permission Model). Other platforms receive a degraded fallback with explicit warnings.
+
 ### 6. Plugins Are Stateless
 
 Plugins do not retain state between invocations. Each request is self-contained. If a plugin requires persistent state (e.g., a cache), it must manage that state through explicitly declared permissions and receive the relevant paths through its validated configuration.
@@ -652,6 +654,67 @@ Every plugin declares its required permissions in its manifest's `permissions` b
 3. **Violation handling.** If a plugin attempts to exceed its declared permissions during execution, the attempt is denied, the violation is logged at `audit` severity, and the plugin invocation is treated as a failure. The core continues with remaining plugins.
 
 4. **Least privilege.** Plugins should declare the minimum permissions necessary for their operation. The Plugin Host may reject plugins that declare excessively broad permissions.
+
+### V1 Enforcement Model
+
+V1 implements enforcement at three levels:
+
+| Level | Description | V1 Status |
+|-------|-------------|-----------|
+| **1 — Permission Declaration** | Plugin manifests declare read paths, write paths, executables, network, capabilities. Host validates at registration time. | ✅ Implemented (`host.go` validation) |
+| **2 — Policy Construction** | Host translates manifest permissions into a `Policy` struct passed to the sandbox backend. | ✅ V1 |
+| **3 — OS-Level Enforcement** | The Linux kernel enforces the policy. Landlock restricts filesystem access. seccomp-BPF restricts syscalls. Network namespace denies connectivity. PID namespace isolates process visibility. prlimit constrains resources. | ✅ V1 Linux backend |
+
+#### Landlock Filesystem Enforcement
+
+- Plugin's declared `ReadPaths` → Landlock `RODirs` / `ROFiles` rules.
+- Plugin's declared `WritePaths` → Landlock `RWDirs` rules (Restore/Storage only).
+- Plugin's own directory → read-only access.
+- Everything else → kernel-denied. Not application-level path string matching.
+- Symlinks, traversal, and path normalization are handled by the kernel after Landlock rules are applied. Landlock operates on inodes, not string paths.
+- **Minimum ABI requirement:** V1 requires Landlock ABI v1 as a non-negotiable baseline. If the kernel does not support ABI v1, sandboxed plugin invocation **fails closed** — the plugin is not executed. Stronger ABIs (v2–v9) are used when available for additional guarantees (e.g., file refer, truncation, ioctl restrictions), but the core filesystem access control provided by ABI v1 is the minimum security baseline. `BestEffort()` is not used for the core restriction — silent degradation below baseline is not acceptable.
+
+#### seccomp-BPF Syscall Restriction (Defense-in-Depth)
+
+> **Important:** seccomp in V1 is **defense-in-depth — it reduces the attack surface but is not a complete syscall confinement boundary.** The term "OS-level isolation" refers to the combined effect of Landlock (filesystem), namespaces (process/network), and seccomp (syscall reduction) — it does not imply that every possible syscall is confined. "Full OS-level isolation" must not be read as "full syscall confinement."
+
+- Plugin processes run under a seccomp filter that denies dangerous syscalls (e.g., `ptrace`, `mount`, `reboot`, `kexec_load`, `init_module`).
+- The filter uses a **denylist** of privileged/unnecessary operations rather than a strict allowlist, since plugins may be arbitrary executables (shell scripts, Python, compiled binaries) with varied syscall requirements. A plugin retains access to all syscalls not explicitly denied.
+- **Namespace-creation restriction:** `setns` and `unshare` are denied outright. `clone` and `clone3` are allowed for normal threading and process creation (required by Go runtime, shell scripts, etc.), but the BPF filter evaluates their flags — calls with any `CLONE_NEW*` flag (e.g., `CLONE_NEWUSER`, `CLONE_NEWPID`, `CLONE_NEWNET`) are denied with `EPERM`. This prevents plugins from creating new namespaces while preserving normal runtime operation.
+- Denied operations return `EPERM` or `EACCES`, not `SIGKILL`, to allow graceful error handling.
+
+#### Network Isolation
+
+- Plugins with `Network=false`: run in a new network namespace with no configured interfaces (only loopback, which is `DOWN`). The kernel enforces — no TCP/UDP connections are possible.
+- Plugins with `Network=true` (Storage plugins only): run in the host network namespace.
+- This is not advisory. The kernel enforces network isolation.
+
+#### Process Isolation
+
+- PID namespace: plugin cannot see or signal host processes.
+- `PR_SET_NO_NEW_PRIVS`: plugin cannot gain privileges via setuid binaries.
+- Resource limits via `prlimit`: memory, CPU time, max processes, file size.
+- `RLIMIT_NPROC` is a **resource limit** (fork bomb prevention), not a namespace-creation security boundary. Namespace-creation restriction is handled by seccomp clone/clone3 flag filtering.
+
+#### Timeout and Output Enforcement
+
+- `context.WithTimeout` with process-tree kill on expiry (kill the process group, not just the PID).
+- `limitedWriter` on stdout/stderr.
+
+#### V1 Limitations
+
+- V1 Linux backend requires Linux kernel ≥5.13 (Landlock ABI v1). If the running kernel does not support Landlock ABI v1, sandboxed plugin invocation **fails closed** — the plugin is not executed. V1 does not silently degrade to a weaker enforcement level.
+- Windows and other platforms receive a degraded fallback: application-level path validation, timeout, and output limits only. No OS-level isolation. The fallback logs a warning at `audit` severity.
+- seccomp uses a denylist, not a strict allowlist. This is explicitly a **defense-in-depth layer**, not a complete syscall confinement boundary. A determined attacker with access to non-denied syscalls may still perform unintended operations.
+- Landlock does not protect against kernel-level attacks (e.g., kernel exploits). This is true of all userspace sandboxes.
+- **Sandbox escape remains a critical-impact threat** regardless of the V1 implementation. V1 provides strong OS-level isolation on Linux, but the actual residual risk depends on kernel integrity, correct sandbox configuration, and implementation correctness. A definitive risk rating (e.g., "low") requires independent penetration testing and security review — not merely an implementation plan.
+
+#### V2 Direction
+
+- Windows backend (Job Objects, Restricted Tokens).
+- Stricter seccomp profiles per plugin type (allowlist-based).
+- Optional cgroup v2 integration for finer resource controls.
+- Cloud/container-native backends.
 
 ### Permission Rules by Plugin Type
 

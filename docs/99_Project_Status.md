@@ -1,7 +1,7 @@
 # AERS — Project Status
 
 > **Status:** Active
-> **Last Updated:** 2026-08-20 (audit corrections applied)
+> **Last Updated:** 2026-08-21 (V1 Linux sandbox implementation)
 > **Author:** AI Engineering Review (Antigravity)
 > **Audience:** Project maintainers, future contributors, AI sessions
 > **Purpose:** Engineering dashboard — understand exactly where the project stands
@@ -35,12 +35,12 @@ The AERS project has completed **extensive, production-grade documentation**, im
 
 | Category | State |
 |----------|-------|
-| **Design documentation** | Comprehensive. Six canonical documents (~315,000 bytes) covering vision, requirements, architecture, threat model, data model, and plugin API. One onboarding context document. Ten ADR files (two populated: ADR-0009 Configuration Manager, ADR-0010 Crypto Envelope). |
+| **Design documentation** | Comprehensive. Six canonical documents (~315,000 bytes) covering vision, requirements, architecture, threat model, data model, and plugin API. One onboarding context document. Eleven ADR files (three populated: ADR-0009 Configuration Manager, ADR-0010 Crypto Envelope, ADR-0011 Plugin Execution Isolation). |
 | **Configuration Manager (S17)** | Fully implemented: 5-tier merge, schema validation, business validation, source attribution, deep-copy immutability, plugin config passthrough, bulk error reporting. Tested. |
 | **Logging & Audit (S16)** | Partially implemented: zerolog wrapper with structured JSON output, level mapping, component tagging, correlation ID context, and a custom `audit` severity. Tested. |
 | **Domain model (S4 foundation)** | Implemented in `internal/model`: behavior-free, platform-neutral types for the manifest and its sections, plans/actions, archive and integrity records, plugin metadata, approvals, restore results, and verification reports. Tested for representative manifest and archive construction. |
 | **Crypto Engine (S9 foundation)** | Implemented in `internal/crypto`: Argon2id key derivation, AES-256-GCM authenticated envelopes, general/credential key-purpose separation, SHA-256 hashing, and malformed-envelope work-factor bounds. Tested. GPG signing, archive-container serialization, and subsystem integration remain unimplemented. |
-| **Plugin Host (S12 skeleton)** | Implemented in `internal/plugin`: directory scanning, strict manifest parsing, interface/type/permission validation, duplicate-ID isolation, stable registration snapshots, and bounded timed JSON subprocess invocation. Signature verification, OS-level sandbox enforcement, and capability-index dispatch remain unimplemented. |
+| **Plugin Host (S12 skeleton + V1 sandbox)** | Implemented in `internal/plugin`: directory scanning, strict manifest parsing, interface/type/permission validation, duplicate-ID isolation, stable registration snapshots, bounded timed JSON subprocess invocation, and V1 OS-level plugin isolation on Linux (Landlock + seccomp + namespaces). Signature verification, capability-index dispatch, and non-Linux sandbox backends remain unimplemented. |
 | **CLI entry point** | Skeleton `cmd/aers/main.go` — creates a logger and invokes a placeholder subsystem. Not functional. |
 | **Everything else** | Empty directories or does not exist. |
 
@@ -85,7 +85,7 @@ The roadmap defined in `08_PROJECT_CONTEXT.md` §10 outlines four phases. Below 
 | Capture Engine (S7) | ❌ Not started |
 | Crypto Engine (S9) | ❌ Not started |
 | Storage Backend (S8) | ❌ Not started |
-| Plugin Host (S12) | 🟡 Skeleton implemented | Directory scanning, manifest validation, registration, and bounded subprocess protocol are implemented; trust verification, sandbox enforcement, and capability negotiation remain. |
+| Plugin Host (S12) | 🟡 Skeleton + V1 sandbox | Directory scanning, manifest validation, registration, bounded subprocess protocol, and OS-level plugin isolation (Linux: Landlock + seccomp + namespaces) are implemented. Trust verification, capability-index dispatch, and non-Linux sandbox backends remain. |
 | Restore Engine (S10) | ❌ Not started |
 | Verification Engine (S11) | ❌ Not started |
 
@@ -132,6 +132,8 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 - `07_Roadmap.md` is empty — no formal timeline or phasing beyond what's described in `08_PROJECT_CONTEXT.md` §10.
 - The docs do not have a `README.md` (the root `README.md` serves this purpose but is separate from the `docs/` folder).
 
+**Note:** The `updates/` directory contains working artifacts from prior AI-assisted development sessions (architecture reviews, audit reports, implementation plans). These are not canonical documents.
+
 ---
 
 ## 4. Subsystem Status
@@ -141,7 +143,7 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 | ID | Subsystem | Package | Files | Lines | Tests | Test Coverage |
 |----|-----------|---------|-------|-------|-------|--------------|
 | **S17** | Configuration Manager | `internal/config` | 8 | ~558 | 6 test cases in `loader_test.go` (260 lines) | Moderate — covers merge, strict decoding, plugin keys, validation accumulation, immutability, nested merge. Missing: env_mapper tests, business_validation edge cases, error type tests. |
-| **S12** | Plugin Host | `internal/plugin` | 1 source + 1 test | — | 2 | Core registration and subprocess protocol coverage; trust, sandbox, and dispatch integration pending. |
+| **S12** | Plugin Host | `internal/plugin` | source + sandbox + test | — | 2+ | Core registration, subprocess protocol, and V1 Linux sandbox (Landlock, seccomp, namespaces) coverage. Trust verification, dispatch integration, and non-Linux sandbox pending. |
 | **S16** | Logging & Audit | `internal/logger` | 1 | 120 | 5 test cases in `log_test.go` (123 lines) | Moderate — covers level creation, component tagging, context correlation, log levels, audit severity, JSON output. Missing: nil writer edge case, concurrent usage. |
 
 ### Placeholder / Skeleton
@@ -186,10 +188,11 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 | ADR-0008 | Full Backup V1 | `ADRs/ADR-0008-Full-Backup-V1.md` | ❌ **Empty** |
 | ADR-0009 | Configuration Manager | `ADRs/ADR-0009-Configuration-Manager.md` | ✅ **Complete** — 91 lines, well-structured with Context, Decision, Consequences, Alternatives Considered, Implementation Notes |
 | ADR-0010 | Crypto Envelope | `ADRs/ADR-0010-Crypto-Envelope.md` | ✅ **Complete** — 47 lines, covers Argon2id + AES-256-GCM envelope design, key-purpose separation, and KDF parameter bounds |
+| ADR-0011 | Plugin Execution Isolation | `ADRs/ADR-0011-Plugin-Execution-Isolation.md` | ✅ **Complete** — V1 Linux-first plugin isolation strategy: Landlock + seccomp + namespaces, supervisor/re-exec architecture, fail-closed Landlock baseline, seccomp defense-in-depth framing |
 
 ### Assessment
 
-8 of 10 ADR files are empty stubs. The decisions they represent *are* documented in the canonical design documents, but the ADR format (Context → Decision → Consequences → Alternatives Considered) is not captured. ADR-0009 and ADR-0010 are the models to follow for backfilling the others.
+8 of 11 ADR files are empty stubs. The decisions they represent *are* documented in the canonical design documents, but the ADR format (Context → Decision → Consequences → Alternatives Considered) is not captured. ADR-0009, ADR-0010, and ADR-0011 are the models to follow for backfilling the others.
 
 ---
 
@@ -219,9 +222,9 @@ None.
 ### Test Infrastructure
 
 - No test helpers, fixtures, or shared test utilities.
-- No CI/CD pipeline configured (no `.github/workflows`, no `Makefile` with test targets).
+- CI/CD pipeline configured: `.github/workflows/ci.yml` with test (ubuntu + windows, race detector on Linux), lint (golangci-lint v2), and build jobs.
 - No test coverage reporting.
-- No linting or static analysis configured.
+- Linting configured: `.golangci.yml` with gosec, govet, staticcheck, revive, gocritic, and 8 additional linters.
 
 ### Missing Test Coverage
 
@@ -287,9 +290,9 @@ The dependency footprint is minimal and intentional — three direct dependencie
 | ID | Risk | Impact | Likelihood | Mitigation |
 |----|------|--------|-----------|------------|
 | **R-1** | **Architecture-implementation gap.** 315 KB of design docs with ~700 lines of implementation code. Risk of drift as implementation progresses. | High | Medium | Treat docs as source of truth. Update docs when implementation forces design changes. Use ADRs for deviations. |
-| **R-2** | **Plugin sandbox enforcement.** The architecture specifies robust sandboxing but no implementation exists. Subprocess isolation alone may be insufficient (architecture §E-01 notes this). | Critical | Medium | Research OS-level sandboxing options (seccomp, AppArmor, Windows Integrity Levels) early. Prototype before committing to a design. |
+| **R-2** | **Plugin sandbox enforcement.** V1 implements OS-level isolation on Linux (Landlock, seccomp, namespaces). Non-Linux platforms have degraded enforcement. Full cross-platform sandbox is V2 scope. | Critical | Medium | V1 Linux sandbox implemented. Residual risk depends on kernel integrity, correct configuration, and implementation correctness. Independent security review required for definitive risk rating. |
 | **R-3** | **Crypto implementation correctness.** The architecture specifies AES-256-GCM, Argon2, SHA-256, and GPG signing. Implementation must use vetted libraries and correct patterns (Security Assumption SA-9). | Critical | Low | Use `golang.org/x/crypto` for Argon2, stdlib `crypto/aes` + `crypto/cipher` for AES-256-GCM, stdlib `crypto/sha256` for hashing. Do not roll custom crypto. |
-| **R-4** | **No CI/CD.** No automated test execution, no linting, no build verification. Regressions could be introduced silently. | Medium | High | Set up GitHub Actions with `go test ./...`, `go vet`, and `golangci-lint` before the next implementation phase. |
+| **R-4** | **CI/CD.** CI/CD is configured (`.github/workflows/ci.yml`, `.golangci.yml`). Tests, linting, and builds run on push/PR for ubuntu and windows. | Low | Low | Operational. Consider adding test coverage reporting and security scanning. |
 | **R-5** | **Single contributor.** Bus factor of 1. All design knowledge lives in docs (good) but implementation velocity is constrained. | Medium | — | The comprehensive docs mitigate knowledge loss. Consider prioritizing an onboarding guide (`06_Coding_Standards.md`). |
 | **R-6** | **Platform-specific defaults.** Config defaults assume Linux paths. Windows and macOS users would need to override every path. | Low | Medium | Use Go's `os.UserConfigDir()` and `os.UserCacheDir()` for platform-aware defaults. |
 
@@ -356,7 +359,7 @@ The following sequence respects the dependency graph defined in `02_Architecture
 | 2 | **Implement Crypto Engine (S9)** | S9 | Leaf dependency (depends on nothing internal). Required by Capture Engine, Storage Backend, and Restore Engine. AES-256-GCM encryption, SHA-256 hashing, Argon2 KDF. |
 | 3 | **Implement CLI Shell framework (S1)** | S1 | Required for any user-facing functionality. Choose and integrate a command framework. Define top-level commands: `backup`, `restore`, `discover`, `verify`, `diff`, `config show`. |
 | 4 | **Implement Discovery Engine (S3)** | S3 | Consume the Plugin Host registry and aggregate isolated plugin responses into discovery results. |
-| 5 | **Set up CI/CD pipeline** | — | `go test ./...`, `go vet`, linting. Prevent regressions before codebase grows. |
+| 5 | ~~**Set up CI/CD pipeline**~~ ✅ Done | — | CI/CD configured: `.github/workflows/ci.yml` with test, lint, and build jobs. |
 
 ### Near-Term (Core Pipeline — Phase 2)
 
