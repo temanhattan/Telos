@@ -1,4 +1,4 @@
-# AERS — Plugin API Specification
+# Telos — Plugin API Specification
 
 > **Status:** Ratified
 > **Last Updated:** 2026-07-01
@@ -38,9 +38,9 @@
 
 ## Purpose
 
-This document is the authoritative specification of the AERS Plugin API — the contract between the stable core system and the extensible plugin ecosystem.
+This document is the authoritative specification of the Telos Plugin API — the contract between the stable core system and the extensible plugin ecosystem.
 
-The plugin boundary is the most important architectural boundary in AERS. It separates the invariant core — orchestration, cryptography, storage, verification — from the variant periphery — OS-specific discovery, package-manager integrations, cloud adapters, and classification rules. The quality of this boundary determines whether AERS achieves its vision of a platform that grows without core modification.
+The plugin boundary is the most important architectural boundary in Telos. It separates the invariant core — orchestration, cryptography, storage, verification — from the variant periphery — OS-specific discovery, package-manager integrations, cloud adapters, and classification rules. The quality of this boundary determines whether Telos achieves its vision of a platform that grows without core modification.
 
 This specification defines **what** the plugin interface requires. It does **not** define implementation details, technology choices, serialization formats, or internal data representations. Those decisions belong to implementation-level design documents.
 
@@ -115,7 +115,7 @@ Every plugin must declare a **plugin manifest** — a static metadata declaratio
 
 ```
 PluginManifest
-├── id: string                  — Globally unique identifier (reverse-domain convention: "io.aers.discovery.apt")
+├── id: string                  — Globally unique identifier (reverse-domain convention: "io.telos.discovery.apt")
 ├── name: string                — Human-readable display name ("APT Package Discovery")
 ├── version: SemVer             — Plugin version ("1.2.0")
 ├── interface_version: int      — Target plugin interface version (e.g., 1)
@@ -152,8 +152,8 @@ The plugin interface is versioned to enable controlled evolution of the plugin c
 | **Additive changes** | New optional fields in request or response schemas do not constitute breaking changes and do not increment the interface version. Plugins must tolerate unknown fields in requests. |
 | **Version declaration** | Every plugin declares its target interface version in its manifest. The Plugin Host checks this value before loading. |
 | **Compatibility gate** | The Plugin Host refuses to load any plugin whose `interface_version` does not match the host's supported version. This is a hard rejection, not a negotiation. |
-| **Version 1 scope** | Version 1 of AERS supports exactly one plugin interface version. The Plugin Host loads only plugins targeting that version. Backward compatibility adapters for previous interface versions are explicitly deferred to Version 2. |
-| **Deprecation policy** | When a new interface version is released in future AERS versions, the previous version enters a deprecation window of at least one major AERS release cycle before support may be dropped. |
+| **Version 1 scope** | Version 1 of Telos supports exactly one plugin interface version. The Plugin Host loads only plugins targeting that version. Backward compatibility adapters for previous interface versions are explicitly deferred to Version 2. |
+| **Deprecation policy** | When a new interface version is released in future Telos versions, the previous version enters a deprecation window of at least one major Telos release cycle before support may be dropped. |
 
 ---
 
@@ -203,7 +203,7 @@ Plugins execute as **isolated subprocesses**. The Plugin Host spawns a plugin pr
 
 ## Plugin Type Contracts
 
-AERS defines five plugin types. Each type has a specific purpose, a defined consumer within the core, a request structure, a response structure, and a behavioral contract that the plugin must honor.
+Telos defines five plugin types. Each type has a specific purpose, a defined consumer within the core, a request structure, a response structure, and a behavioral contract that the plugin must honor.
 
 ---
 
@@ -566,7 +566,7 @@ Each plugin declares a `configuration_schema` in its manifest. This schema defin
 ### Configuration Flow
 
 ```
-User configuration file (e.g., ~/.aers/config.yaml)
+User configuration file (e.g., ~/.telos/config.yaml)
     └── Plugin-specific section, keyed by plugin ID
                 ↓
 Configuration Manager (S17) loads configuration from all sources,
@@ -738,14 +738,14 @@ Plugins cannot call back into core subsystems. They have no mechanism to access 
 
 ## Plugin Trust Model
 
-AERS defines three trust levels for plugins. Trust is evaluated during the Trust phase of the plugin lifecycle, before validation or registration occurs. A plugin that does not meet the minimum trust requirements for the configured trust policy is never loaded.
+Telos defines three trust levels for plugins. Trust is evaluated during the Trust phase of the plugin lifecycle, before validation or registration occurs. A plugin that does not meet the minimum trust requirements for the configured trust policy is never loaded.
 
 ### Trust Levels
 
 | Trust Level | Criteria | Behavior |
 |------------|----------|----------|
-| **Official** | Plugin is signed with the AERS project signing key. The signature covers both the manifest and the package contents. | Loaded automatically. No user intervention required. |
-| **Community** | Plugin is signed with a third-party key that is not the AERS project key. The signature is valid and covers the full package. | Loaded only after explicit user approval. On first encounter, the Plugin Host presents the plugin's identity, author, capabilities, and signing key fingerprint to the user. The user must approve installation before the plugin is registered. Approval is persisted so subsequent startups do not re-prompt. |
+| **Official** | Plugin is signed with the Telos project signing key. The signature covers both the manifest and the package contents. | Loaded automatically. No user intervention required. |
+| **Community** | Plugin is signed with a third-party key that is not the Telos project key. The signature is valid and covers the full package. | Loaded only after explicit user approval. On first encounter, the Plugin Host presents the plugin's identity, author, capabilities, and signing key fingerprint to the user. The user must approve installation before the plugin is registered. Approval is persisted so subsequent startups do not re-prompt. |
 | **Unsigned** | Plugin has no digital signature, or the signature is invalid, expired, or does not cover the full package. | **Disabled by default.** The Plugin Host logs the presence of unsigned plugins at `warn` severity but does not load them. The user must explicitly configure an override to permit unsigned plugins. This override is per-plugin, not global, and is logged at `audit` severity when exercised. |
 
 ### Trust Policy Configuration
@@ -1008,4 +1008,4 @@ Every element of this specification is traceable to the foundational documents.
 
 ---
 
-> **This document defines the contract between the AERS core and the plugin ecosystem.** Every plugin implementation must conform to the contracts, permissions, and behavioral rules defined here. Every core subsystem that consumes plugins must dispatch through the Plugin Host and honor the isolation guarantees. If a future implementation decision conflicts with this specification, the conflict must be resolved explicitly — either by updating the implementation or by amending this document through formal review.
+> **This document defines the contract between the Telos core and the plugin ecosystem.** Every plugin implementation must conform to the contracts, permissions, and behavioral rules defined here. Every core subsystem that consumes plugins must dispatch through the Plugin Host and honor the isolation guarantees. If a future implementation decision conflicts with this specification, the conflict must be resolved explicitly — either by updating the implementation or by amending this document through formal review.

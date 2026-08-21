@@ -1,4 +1,4 @@
-// Package crypto provides the S9 cryptographic foundation for AERS.
+// Package crypto provides the S9 cryptographic foundation for Telos.
 // It owns password-based key derivation, authenticated encryption, and hashing.
 package crypto
 

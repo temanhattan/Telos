@@ -35,7 +35,7 @@ func stringReplaceExecutable(manifest string) string {
 	return manifest[:len(manifest)-len("plugin")] + "plugin.cmd"
 }
 
-const validManifest = `id: io.aers.discovery.test
+const validManifest = `id: io.telos.discovery.test
 name: Test
 version: 1.0.0
 interface_version: 1
@@ -46,7 +46,7 @@ executable: plugin`
 func TestDiscoverRegistersValidAndSkipsInvalid(t *testing.T) {
 	root := t.TempDir()
 	writePlugin(t, root, "valid", validManifest)
-	writePlugin(t, root, "invalid", `id: io.aers.bad
+	writePlugin(t, root, "invalid", `id: io.telos.bad
 name: Bad
 version: 1.0.0
 interface_version: 2
@@ -58,7 +58,7 @@ executable: plugin`)
 	if len(failures) != 1 {
 		t.Fatalf("got %d failures", len(failures))
 	}
-	if got := h.Plugins(); len(got) != 1 || got[0].ID != "io.aers.discovery.test" {
+	if got := h.Plugins(); len(got) != 1 || got[0].ID != "io.telos.discovery.test" {
 		t.Fatal("valid plugin was not registered")
 	}
 }
@@ -71,7 +71,7 @@ func TestInvokeUsesJSONProtocol(t *testing.T) {
 	writePlugin(t, root, "valid", validManifest)
 	h := New(Options{PluginDirs: []string{root}})
 	h.Discover()
-	got, err := h.Invoke(context.Background(), "io.aers.discovery.test", map[string]string{"operation": "discover"})
+	got, err := h.Invoke(context.Background(), "io.telos.discovery.test", map[string]string{"operation": "discover"})
 	if err != nil {
 		t.Fatal(err)
 	}

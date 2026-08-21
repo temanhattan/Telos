@@ -1,39 +1,75 @@
-# Adaptive Environment Recovery System (AERS)
+# Telos — Intent-Driven Environment Recovery & Reconstruction
 
 ## Overview
 
-The Adaptive Environment Recovery System (AERS) is an intelligent platform designed to discover, securely capture, and deterministically reconstruct computing environments.
+**Telos** is an intelligent, security-first platform designed to discover, securely capture, and deterministically reconstruct computing environments.
 
 Its core philosophy is simple: **"Understand the environment before backing it up."**
 
-Unlike traditional backup tools that blindly copy files, AERS analyzes a machine to determine its role, operating system, installed software, and configurations. It captures the *intent* behind the environment and constructs an intelligent backup plan, enabling you to restore a fully functional setup with confidence, speed, and security.
+Unlike traditional backup tools that blindly copy files, Telos analyzes a machine to understand its role, operating system, installed software, configurations, and internal relationships. It captures the **inherent intent** behind the environment and constructs an intelligent blueprint, enabling you to reconstruct a fully functional setup with confidence, speed, and zero-trust security across physical, virtual, and cloud machines.
+
+---
+
+## Concept & Symbolism: Why *Telos*?
+
+> **Telos** (Ancient Greek: *τέλος*) is Aristotle's philosophical concept denoting the ultimate purpose, inherent end-goal, and true function of an entity or system.
+
+In teleology, an object is not defined merely by its physical matter (raw bytes, disk blocks, or arbitrary files), but by what it is **intended to be and do**.
+
+```
+  Traditional Backups (Artifact-Centric):
+  [ Dumb Files / Raw Bytes ] ─── Blind Copy ───► [ Fragile & Incomplete Restore ]
+
+  Telos (Teleology & Intent-Centric):
+  [ Source Machine ] ──► (Discovers Intent & Role) ──► [ Telos Blueprint ] ──► (Deterministic Fulfillment) ──► [ Working Environment ]
+```
+
+- **Comprehension Over Copying**: A computing environment is an intricate web of purpose—a web server, a machine learning workstation, or a security audit laboratory. Telos discovers this purpose first.
+- **Intent Over Artifacts**: Capturing the *why* (e.g., "this system runs an Nginx reverse proxy with TLS termination") rather than merely cloning perishable binaries.
+- **Reconstruction as Fulfillment**: Recovery is the deterministic fulfillment of the system's *telos* on any compatible target machine, adapting configurations to realize its operational purpose.
 
 ---
 
 ## Key Features
 
-- **Environment Discovery**: Automatically identifies the OS, hardware profile, installed software, active services, user data, and network configurations.
-- **Intelligent Backup Planning**: Never backs up blindly. Generates structured, human-reviewable backup plans by determining what is essential versus what is transient or reproducible.
-- **Deterministic Restore**: Reconstructs the environment identically every time on a compatible target machine, adapting configurations when necessary.
-- **Plugin-based Architecture**: Uses an extensible plugin ecosystem for OS-specific logic, package managers, services, and cloud integrations without modifying the core system.
-- **Secure Archive Management**: Provides full credential isolation, zero-trust cryptographic signing, integrity verification, and strong encryption for all backup artifacts.
-- **Offline-first**: Fully functional without requiring cloud connectivity. Operates securely on untrusted storage media.
-- **AI-assisted Analysis**: Leverages machine learning models to classify environment components, suggest optimizations, and predict potential restore conflicts.
-- **Cross-platform Design**: Built to discover and reconstruct environments across physical machines, virtual machines, and cloud instances.
+- **Teleological Discovery**: Automatically identifies the OS, hardware profile, installed software, active services, user data layout, and network configurations.
+- **Intent-Aware Planning**: Never backs up blindly. Generates structured, human-reviewable blueprints by determining what is essential versus what is transient or reproducible.
+- **Deterministic Reconstruction**: Reconstructs the environment identically every time on a compatible target machine, adapting configurations when necessary.
+- **Plugin-based Architecture**: Uses an extensible, sandboxed plugin ecosystem for OS-specific logic, package managers, services, and cloud integrations without modifying the core system.
+- **Zero-Trust Security**: Provides strict credential isolation, zero-trust cryptographic signing, integrity verification, and AES-256-GCM encryption for all backup artifacts.
+- **Offline-First Resilience**: Fully functional without requiring cloud connectivity. Operates safely on untrusted storage media.
+- **AI-Assisted Analysis**: Leverages machine learning models to classify environment components, suggest optimizations, and predict potential restore conflicts.
+- **Cross-Platform Design**: Built to discover and reconstruct environments across Linux, macOS, Windows, virtual machines, and cloud instances.
 
 ---
 
 ## Project Goals
 
-AERS exists to solve the problem of "lost context" during disaster recovery, migration, or environment provisioning. When a machine is reformatted or lost, restoring files alone does not recreate the working environment. Users are often left remembering what was installed, how it was configured, and why certain decisions were made.
+Telos exists to solve the problem of **lost context** during disaster recovery, migration, or environment provisioning. When a machine is reformatted or lost, restoring raw files alone does not recreate the working environment. Users are often left trying to remember what was installed, how it was configured, and why certain decisions were made.
 
-AERS eliminates this friction by treating backup as a byproduct of comprehension. By capturing intent alongside data, AERS guarantees deterministic environment reconstruction and gives developers peace of mind when managing diverse fleets of machines.
+Telos eliminates this friction by treating backup as a byproduct of comprehension. By capturing intent alongside data, Telos guarantees deterministic environment reconstruction and gives developers peace of mind when managing diverse fleets of machines.
 
 ---
 
 ## High-Level Architecture
 
-AERS features a **pipeline-oriented, plugin-extended, CLI-driven** architecture. It strictly separates the stable core (orchestration, cryptography, verification, storage) from the variant periphery (OS-specific discovery, cloud adapters) through a formal Plugin API boundary.
+Telos features a **pipeline-oriented, plugin-extended, CLI-driven** architecture. It strictly separates the stable core (orchestration, cryptography, verification, storage) from the variant periphery (OS-specific discovery, cloud adapters) through a formal Plugin API boundary.
+
+```mermaid
+flowchart LR
+    A["1. Discover (Telos)"] --> B["2. Classify (Intent)"]
+    B --> C["3. Plan (Blueprint)"]
+    C --> D["4. Capture (Secure Archive)"]
+    D --> E["5. Restore (Reconstruction)"]
+    E --> F["6. Verify (Validation)"]
+
+    style A fill:#1a1a2e,stroke:#e94560,color:#eee
+    style B fill:#1a1a2e,stroke:#e94560,color:#eee
+    style C fill:#1a1a2e,stroke:#0f3460,color:#eee
+    style D fill:#1a1a2e,stroke:#0f3460,color:#eee
+    style E fill:#1a1a2e,stroke:#16213e,color:#eee
+    style F fill:#1a1a2e,stroke:#16213e,color:#eee
+```
 
 Data flows through linear, staged pipelines where each stage produces well-defined output consumed by the next. For complete details, refer to the [System Architecture](docs/02_Architecture.md) document.
 
@@ -42,7 +78,7 @@ Data flows through linear, staged pipelines where each stage produces well-defin
 ## Documentation
 
 | Document | Description |
-|----------|-------------|
+| ---------- | ------------- |
 | [Vision](docs/00_Vision.md) | Mission statement, goals, and long-term vision. |
 | [Requirements](docs/01_Requirements.md) | Software Requirements Specification (functional & non-functional). |
 | [Architecture](docs/02_Architecture.md) | High-level system design, subsystems, and data flows. |
@@ -65,7 +101,7 @@ Initial architecture and data models are complete. Active implementation is unde
 
 ## Planned Roadmap
 
-The implementation will follow a phased approach:
+The implementation follows a phased approach:
 
 1. **Phase 1 (Architecture & Design)**: Finalizing vision, requirements, core architecture, and data models. *(Completed)*
 2. **Phase 2 (Core Framework)**: Implementation of the Orchestrator, CLI Shell, Storage Backend, and Crypto Engine. *(Current Phase)*
@@ -87,7 +123,7 @@ The implementation will follow a phased approach:
 
 ## Security
 
-AERS takes a security-first approach, recognizing that it handles the most sensitive data in an environment (keys, credentials, tokens).
+Telos takes a security-first approach, recognizing that it handles the most sensitive data in an environment (keys, credentials, tokens).
 
 - **Zero-Trust Storage**: All archives are encrypted and signed.
 - **Credential Isolation**: Sensitive materials are separated into a distinct security domain.

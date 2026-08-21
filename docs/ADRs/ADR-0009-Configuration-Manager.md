@@ -8,9 +8,9 @@ Accepted
 
 # Context
 
-The Configuration Manager (subsystem S17) exists to serve as the unified, definitive source of truth for all operational settings within the AERS system. 
+The Configuration Manager (subsystem S17) exists to serve as the unified, definitive source of truth for all operational settings within the Telos system. 
 
-Configuration must be centralized to prevent scattered, inconsistent logic where different subsystems attempt to parse files, resolve environment variables, or read command-line arguments independently. Because AERS operates in a decoupled architecture where independent subsystems rely on configuration (e.g., Storage needs backend paths, Crypto needs algorithms, Discovery needs plugin directories), every subsystem depends on the Configuration Manager.
+Configuration must be centralized to prevent scattered, inconsistent logic where different subsystems attempt to parse files, resolve environment variables, or read command-line arguments independently. Because Telos operates in a decoupled architecture where independent subsystems rely on configuration (e.g., Storage needs backend paths, Crypto needs algorithms, Discovery needs plugin directories), every subsystem depends on the Configuration Manager.
 
 To guarantee a deterministic and consistent environment, the configuration must be loaded, resolved, and frozen before any other subsystem is initialized. This fulfills the requirement that operational parameters are centrally defined (FR-11) and provides a secure, predictable baseline for system behavior.
 
@@ -18,14 +18,14 @@ To guarantee a deterministic and consistent environment, the configuration must 
 
 The following architectural decisions have been made and implemented for the Configuration Manager:
 
-* **Zero Internal Dependencies:** Configuration Manager is a leaf subsystem with zero internal dependencies. It does not import other AERS subsystems.
+* **Zero Internal Dependencies:** Configuration Manager is a leaf subsystem with zero internal dependencies. It does not import other Telos subsystems.
 * **Immutability:** Configuration is immutable after loading.
 * **Abstraction:** Configuration is represented by a `Profile` interface abstraction rather than exposing mutable concrete structs. Deep copies are utilized to protect internal slices and maps from modification.
 * **Priority Order:** Configuration loading follows a strict 5-tier priority order:
   1. Default (Built-in fallbacks)
-  2. System Config (Global `/etc/aers/`)
-  3. User Config (Local `~/.config/aers/`)
-  4. Environment Variables (`AERS_*`)
+  2. System Config (Global `/etc/telos/`)
+  3. User Config (Local `~/.config/telos/`)
+  4. Environment Variables (`TELOS_*`)
   5. CLI (Command-line overrides)
 * **Strong Typing:** Core configuration domains (Storage, Crypto, Logging, etc.) are strongly typed within Go structs.
 * **Schema-Agnostic Plugins:** Plugin configuration is intentionally schema-agnostic and relies on dynamic mapping: `Plugins map[string]map[string]any`. S17 passes these maps through, but plugin schemas are validated by the Plugin Host (S12), not S17.
@@ -75,7 +75,7 @@ The implementation satisfies these decisions through the following structures:
 
 - **`config.go`**: Defines the strongly-typed core domains and the `Plugins map[string]map[string]any` dynamic structure.
 - **`defaults.go`**: Centralizes the fallback values for the `SourceDefault` tier.
-- **`env_mapper.go`**: Projects flat `AERS_X_Y` environment variables into nested maps for proper merging.
+- **`env_mapper.go`**: Projects flat `TELOS_X_Y` environment variables into nested maps for proper merging.
 - **`merge.go`**: Implements recursive deep merging while populating the separated source attribution map.
 - **`schema_validation.go`**: Implements the strict rules for core domains and returns bulk `ConfigError` arrays.
 - **`business_validation.go`**: Implements non-fatal semantic checks that result in warnings.

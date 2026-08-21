@@ -1,10 +1,10 @@
-// Package main provides the entry point for the AERS CLI.
+// Package main provides the entry point for the Telos CLI.
 package main
 
 import (
-	"AERS/core"
-	log "AERS/internal/logger"
 	"os"
+	"telos/core"
+	log "telos/internal/logger"
 )
 
 func main() {
@@ -17,5 +17,5 @@ func main() {
 	// 3. Use the subsystem.
 	someSubsystem.DoWork()
 
-	logger.Info("AERS application finished.")
+	logger.Info("Telos application finished.")
 }

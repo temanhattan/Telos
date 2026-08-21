@@ -1,4 +1,4 @@
-# AERS — Pre-Requirements Architecture Review
+# Telos (formerly AERS) — Pre-Requirements Architecture Review
 
 > Questions and ambiguities identified in [00_Vision.md](file:///c:/Users/Zeyad/PycharmProjects/AERS/docs/00_Vision.md) and [01_Architecture.md](file:///c:/Users/Zeyad/PycharmProjects/AERS/docs/01_Architecture.md) that must be resolved before writing `00.5_Requirements.md`.
 

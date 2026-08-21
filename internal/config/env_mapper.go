@@ -5,11 +5,11 @@ import (
 	"strings"
 )
 
-// resolveEnvOverrides checks the environment for variables starting with AERS_
+// resolveEnvOverrides checks the environment for variables starting with TELOS_
 // and returns a mapped structure matching the YAML layout.
 func resolveEnvOverrides() map[string]any {
 	overrides := make(map[string]any)
-	prefix := "AERS_"
+	prefix := "TELOS_"
 
 	for _, env := range os.Environ() {
 		if !strings.HasPrefix(env, prefix) {

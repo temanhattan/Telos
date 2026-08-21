@@ -326,7 +326,7 @@ type Archive struct {
 	SourceMachineID  MachineID
 	ManifestID       ManifestID
 	ManifestVersion  Version
-	AERSVersion      Version
+	TelosVersion     Version
 	SizeBytes        uint64
 	Encryption       EncryptionAlgorithm
 	Signature        string

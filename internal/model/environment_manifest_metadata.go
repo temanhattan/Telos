@@ -16,8 +16,8 @@ type EnvironmentManifestMetadata struct {
 	// structure the data within this manifest.
 	SchemaVersion Version
 
-	// AERSVersion is the version of AERS that produced this manifest.
-	AERSVersion Version
+	// TelosVersion is the version of Telos that produced this manifest.
+	TelosVersion Version
 
 	// CreatedAt is the instant the manifest was created.
 	CreatedAt Timestamp

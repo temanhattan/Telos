@@ -1,7 +1,7 @@
-// Package model defines the canonical domain model for AERS.
+// Package model defines the canonical domain model for Telos.
 //
 // This package contains the core data structures that represent the
-// fundamental concepts of the Adaptive Environment Recovery System.
+// fundamental concepts of Telos (Intent-Driven Environment Recovery & Reconstruction).
 // Every entity in this package is a plain data structure — a direct
 // representation of the problem domain with no implementation coupling.
 //

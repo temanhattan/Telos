@@ -1,4 +1,4 @@
-# AERS — Software Requirements Specification
+# Telos — Software Requirements Specification
 
 > **Status:** Draft
 > **Last Updated:** 2026-07-01
@@ -58,7 +58,7 @@
 
 ## Purpose
 
-This document defines the software requirements for AERS — the Adaptive Environment Recovery System. It specifies **what** the system must accomplish, the conditions it must satisfy, and the constraints it must respect.
+This document defines the software requirements for Telos — the Intent-Driven Environment Recovery & Reconstruction System. It specifies **what** the system must accomplish, the conditions it must satisfy, and the constraints it must respect.
 
 This document does **not** specify how the system will be implemented. Implementation details, technology choices, and internal design decisions are the domain of the Architecture document and subsequent design artifacts.
 
@@ -68,7 +68,7 @@ All requirements are derived from the [Project Vision](00_Vision.md) and the [Sy
 
 ## Scope
 
-AERS is an intelligent environment backup and restoration system. It discovers the complete state of a computing environment — operating system, installed software, active services, user configurations, credentials, scheduled tasks, network settings, and user data — and produces a secure, encrypted backup archive from which a functionally equivalent environment can be reconstructed on a compatible target machine.
+Telos is an intelligent environment backup and restoration system. It discovers the complete state of a computing environment — operating system, installed software, active services, user configurations, credentials, scheduled tasks, network settings, and user data — and produces a secure, encrypted backup archive from which a functionally equivalent environment can be reconstructed on a compatible target machine.
 
 ### In Scope (Version 1)
 
@@ -98,7 +98,7 @@ AERS is an intelligent environment backup and restoration system. It discovers t
 ## Definitions and Abbreviations
 
 | Term | Definition |
-|------|-----------|
+| ------ | ----------- |
 | **Environment** | The complete state of a computing system: its operating system, installed software, configurations, credentials, data, and services. |
 | **Environment Manifest** | A structured, machine-readable description of a discovered environment. |
 | **Backup Archive** | An encrypted, integrity-verified file containing everything needed to reconstruct an environment. |
@@ -119,7 +119,7 @@ AERS is an intelligent environment backup and restoration system. It discovers t
 
 ### Product Perspective
 
-AERS is a standalone application. It is not a component of a larger system. It interacts with the host operating system to discover environment state, with storage media to persist backup archives, and optionally with external package managers during restoration. It has no mandatory dependency on network services.
+Telos is a standalone application. It is not a component of a larger system. It interacts with the host operating system to discover environment state, with storage media to persist backup archives, and optionally with external package managers during restoration. It has no mandatory dependency on network services.
 
 ### User Profile
 
@@ -127,10 +127,10 @@ The primary user is a technically sophisticated individual who manages multiple 
 
 ### Operating Environment
 
-AERS must support the following operating environments in Version 1:
+Telos must support the following operating environments in Version 1:
 
 | Category | Supported Environments |
-|----------|----------------------|
+| ---------- | ---------------------- |
 | **Operating Systems** | Ubuntu, Debian, Windows |
 | **Machine Types** | Physical hardware, virtual machines, cloud instances |
 | **Storage Media** | Local filesystem, external drives, network-attached storage |
@@ -149,7 +149,7 @@ AERS must support the following operating environments in Version 1:
 The following constraints are fixed decisions that shape all requirements in this document. They must not be changed or questioned.
 
 | # | Constraint | Rationale |
-|---|-----------|-----------|
+| --- | ----------- | ----------- |
 | C-1 | Version 1 supports restoration only to compatible machines: same operating system family and same CPU architecture. | Establishes a reliable restoration baseline before addressing cross-platform adaptation. |
 | C-2 | Restoration assumes a freshly installed operating system on the target machine. | Eliminates the complexity of merging with an existing environment. |
 | C-3 | Differential and incremental backups are outside the scope of Version 1. | Focused delivery; these will be introduced in future versions. |
@@ -172,7 +172,7 @@ The following constraints are fixed decisions that shape all requirements in thi
 The system must discover the complete state of a computing environment before any backup operation.
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | FR-1.1 | The system must identify the host operating system family, version, and CPU architecture. |
 | FR-1.2 | The system must catalog all installed software packages across all detected package managers, recording the package name, version, source repository, and whether the package was explicitly installed or installed as a dependency. |
 | FR-1.3 | The system must identify running services and daemons, including their current status (running, stopped, disabled), startup behavior, and associated configuration file paths. |
@@ -195,7 +195,7 @@ The system must discover the complete state of a computing environment before an
 After discovery, the system must classify and annotate the Environment Manifest to support intelligent planning.
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | FR-2.1 | The system must determine the overall role of the machine (e.g., developer workstation, web server, database server, cybersecurity lab, general desktop) based on the combination of installed packages, running services, and configuration patterns. |
 | FR-2.2 | The system must assign an importance level to each manifest entry: `critical`, `recommended`, `optional`, or `transient`. |
 | FR-2.3 | The system must annotate each manifest entry with its inferred intent where determinable (e.g., "reverse proxy," "Python development toolchain," "user shell customization"). |
@@ -212,7 +212,7 @@ After discovery, the system must classify and annotate the Environment Manifest 
 Before any backup operation, the system must generate a Backup Plan for user review.
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | FR-3.1 | The system must generate a Backup Plan that lists every artifact to be captured, the method of capture, the estimated size contribution, and the reason for inclusion. |
 | FR-3.2 | The system must support three capture methods: (a) reference capture — record the package name, version, and source repository without copying the binary; (b) file copy — include the file contents in the archive; (c) configuration export — serialize a service or application's configuration through a plugin-provided mechanism. |
 | FR-3.3 | The Backup Plan must prefer reference capture over file copy for any artifact that is available in a known external repository. |
@@ -232,7 +232,7 @@ Before any backup operation, the system must generate a Backup Plan for user rev
 After the user approves a Backup Plan, the system must execute the plan and produce a backup archive.
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | FR-4.1 | The system must execute the approved Backup Plan exactly as specified. It must not capture artifacts not listed in the plan, and must not omit artifacts that are listed. |
 | FR-4.2 | The system must compute a cryptographic hash for every captured artifact immediately after reading it from the source. |
 | FR-4.3 | Credential materials flagged for credential isolation must be captured into a logically separate segment of the archive, distinct from general configuration data. |
@@ -256,7 +256,7 @@ After the user approves a Backup Plan, the system must execute the plan and prod
 Before any restore operation, the system must generate a Restore Plan for user review.
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | FR-5.1 | The system must retrieve the requested backup archive, verify its digital signature (if signed), decrypt it, and verify the integrity of all artifacts before generating a Restore Plan. If any verification step fails, the system must halt and notify the user. |
 | FR-5.2 | The system must generate a Restore Plan that lists every action to be performed on the target machine, organized into ordered phases with dependency-aware sequencing within each phase. |
 | FR-5.3 | The Restore Plan must include the following phases in order: (1) Package Installation, (2) Configuration Application, (3) Credential Restoration, (4) Data Restoration, (5) Service Configuration, (6) Environment and Scheduled Task Setup. |
@@ -274,7 +274,7 @@ Before any restore operation, the system must generate a Restore Plan for user r
 After the user approves a Restore Plan, the system must execute the plan on the target machine.
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | FR-6.1 | The system must execute the Restore Plan strictly as approved. It must not execute any action not present in the plan. |
 | FR-6.2 | The system must execute restore phases in the defined order: Packages → Configuration → Credentials → Data → Services → Environment and Scheduled Tasks. |
 | FR-6.3 | Within each phase, the system must respect dependency ordering: an action must not execute until all actions it depends on have completed successfully. |
@@ -294,7 +294,7 @@ After the user approves a Restore Plan, the system must execute the plan on the 
 After restore execution completes, the system must verify the restored environment.
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | FR-7.1 | The system must perform a fresh discovery scan of the target machine after restoration completes. |
 | FR-7.2 | The system must compare the post-restore Environment Manifest against the original source Environment Manifest. |
 | FR-7.3 | The system must classify each difference into one of the following severity levels: (a) **Expected** — a known difference due to platform adaptation; (b) **Acceptable** — a minor difference that does not affect functionality; (c) **Concerning** — a difference that may indicate an incomplete restore; (d) **Critical** — a difference that indicates a restore failure. |
@@ -310,7 +310,7 @@ After restore execution completes, the system must verify the restored environme
 The system must support comparing environment states for audit and drift detection.
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | FR-8.1 | The system must be able to compare two Environment Manifests and produce a structured Diff Report showing all additions, removals, and modifications, organized by manifest section. |
 | FR-8.2 | The system must support comparing the current live environment against the most recent backup manifest, using the local encrypted manifest cache to avoid decrypting the full archive. |
 | FR-8.3 | The Diff Report must include a summary: total additions, removals, and modifications by section. |
@@ -323,7 +323,7 @@ The system must support comparing environment states for audit and drift detecti
 The system must provide capabilities for managing backup archives.
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | FR-9.1 | The system must support listing all available backup archives with their metadata: UUID, creation timestamp, label (if any), source hostname, and archive size. |
 | FR-9.2 | The system must support configurable retention policies that define how many archives to keep or how long to retain them. |
 | FR-9.3 | The system must support cleanup of expired archives according to the configured retention policy. |
@@ -338,7 +338,7 @@ The system must provide capabilities for managing backup archives.
 The system must support time-based automation of backup operations.
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | FR-10.1 | The user must be able to define recurring backup schedules. |
 | FR-10.2 | The system must evaluate schedule triggers and initiate backup operations at the appropriate times. |
 | FR-10.3 | The first execution of a scheduled backup must present the Backup Plan through the Approval Gate for user review. |
@@ -354,7 +354,7 @@ The system must support time-based automation of backup operations.
 The system must support flexible configuration through multiple sources.
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | FR-11.1 | The system must support configuration from the following sources, listed in descending priority: (1) per-invocation command-line flags, (2) session-level environment variables, (3) persistent per-user configuration file, (4) machine-wide system configuration file, (5) built-in defaults. |
 | FR-11.2 | The system must merge configuration from all sources according to the priority hierarchy, with higher-priority sources overriding lower-priority sources. |
 | FR-11.3 | The system must validate the merged configuration against a schema: rejecting unknown keys, enforcing required fields, and validating types and value ranges. |
@@ -369,7 +369,7 @@ The system must support flexible configuration through multiple sources.
 All environment-specific functionality must be provided through plugins.
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | FR-12.1 | The system must discover and register plugins from configured directories at startup. |
 | FR-12.2 | Each plugin must declare the plugin interface version it targets. The system must refuse to load plugins targeting an incompatible interface version. |
 | FR-12.3 | Each plugin must declare its capabilities: which operating system families, package managers, cloud providers, or other domains it supports. |
@@ -386,7 +386,7 @@ All environment-specific functionality must be provided through plugins.
 The system must support optional AI-assisted advisory features.
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | FR-13.1 | The AI advisory capability must provide non-binding suggestions only. It must never execute actions directly. |
 | FR-13.2 | Every AI-generated suggestion must be tagged with a confidence score and accompanied by a human-readable explanation of the reasoning. |
 | FR-13.3 | All AI suggestions must be overridable by deterministic rules and by user decisions. The trust hierarchy is: Human Decision > Deterministic Logic > AI Suggestion. |
@@ -403,7 +403,7 @@ The system must support optional AI-assisted advisory features.
 The system must provide a command-line interface as the primary interaction model.
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | FR-14.1 | The system must provide a CLI as its sole user interface in Version 1. |
 | FR-14.2 | The CLI must support the following top-level operations: discover, backup, restore, verify, diff, schedule, and configuration inspection. |
 | FR-14.3 | The CLI must support an interactive output mode (with formatting, color, and progress indicators), a plain output mode (suitable for piping to other tools), and a structured data output mode (for programmatic consumption). |
@@ -419,7 +419,7 @@ The system must provide a command-line interface as the primary interaction mode
 ### NFR-1: Security
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | NFR-1.1 | All backup archives must be encrypted before being written to any storage medium. No backup data may be stored in plaintext outside the source machine, including in local staging areas. |
 | NFR-1.2 | All backup archives must include a cryptographic integrity manifest listing the hash of every included artifact. |
 | NFR-1.3 | Before restore begins, the system must verify the integrity manifest against the archive contents. If any artifact fails verification, the restore must halt and the user must be notified. The system must never silently restore corrupted or tampered data. |
@@ -437,7 +437,7 @@ The system must provide a command-line interface as the primary interaction mode
 ### NFR-2: Reliability
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | NFR-2.1 | If a restore is interrupted (power loss, crash, user abort), the system must be able to resume from the point of interruption without corruption or duplication on the next invocation. |
 | NFR-2.2 | Partial failure during discovery or capture must not abort the entire operation. The system must continue with remaining items, mark failures, and report them to the user. |
 | NFR-2.3 | Partial failure must never produce an inconsistent state on the target machine. |
@@ -450,9 +450,9 @@ The system must provide a command-line interface as the primary interaction mode
 ### NFR-3: Performance
 
 | ID | Requirement |
-|----|------------|
-| NFR-3.1 | A typical development environment on Ubuntu must be restorable from an AERS backup within 30 minutes, excluding download time for large packages from external repositories. |
-| NFR-3.2 | A typical development environment on Windows must be restorable from an AERS backup within 45 minutes, excluding download time for large packages from external repositories. |
+| ---- | ------------ |
+| NFR-3.1 | A typical development environment on Ubuntu must be restorable from a Telos backup within 30 minutes, excluding download time for large packages from external repositories. |
+| NFR-3.2 | A typical development environment on Windows must be restorable from a Telos backup within 45 minutes, excluding download time for large packages from external repositories. |
 | NFR-3.3 | The backup archive for a typical development laptop must be less than 20% of the total disk usage of the source machine. |
 
 ---
@@ -460,7 +460,7 @@ The system must provide a command-line interface as the primary interaction mode
 ### NFR-4: Portability
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | NFR-4.1 | The core system must contain zero platform-specific code. All platform-specific behavior must be provided through plugins. |
 | NFR-4.2 | The core system must be capable of running on any platform supported by the chosen implementation language. |
 | NFR-4.3 | Backup archives must be portable: an archive produced on one machine must be restorable on any compatible machine (same OS family and CPU architecture) regardless of where the archive was stored. |
@@ -470,7 +470,7 @@ The system must provide a command-line interface as the primary interaction mode
 ### NFR-5: Extensibility
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | NFR-5.1 | A plugin for a new Linux distribution must be developable and integrable without modifying any core source files. |
 | NFR-5.2 | The plugin interface must be versioned to support backward compatibility as the interface evolves. |
 | NFR-5.3 | The system must define formal extensibility points for: new OS support, new package manager support, new storage backends, and new classification rules. All extension must happen through these points. |
@@ -480,7 +480,7 @@ The system must provide a command-line interface as the primary interaction mode
 ### NFR-6: Usability
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | NFR-6.1 | Every decision the system makes must be explainable. If the system skips a file or includes a directory, the reason must be available to the user. |
 | NFR-6.2 | Every execution plan must present its reasoning: why each item is included, excluded, or flagged. |
 | NFR-6.3 | The system must provide sensible defaults that allow basic operation without requiring manual configuration. |
@@ -491,7 +491,7 @@ The system must provide a command-line interface as the primary interaction mode
 ### NFR-7: Auditability
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | NFR-7.1 | Every operation the system performs must be logged with sufficient detail to reconstruct the sequence of events after the fact: who initiated the operation, what it did, when it occurred, which artifacts were affected, and whether it succeeded or failed. |
 | NFR-7.2 | Log entries must include: timestamp, subsystem identifier, operation type, severity, message, and optional context. |
 | NFR-7.3 | Logs must never contain sensitive data: passphrases, private keys, API tokens, or file contents. Sensitive file paths must be logged by basename only. |
@@ -504,7 +504,7 @@ The system must provide a command-line interface as the primary interaction mode
 ### NFR-8: Offline Operation
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | NFR-8.1 | All discovery, planning, backup, encryption, verification, diffing, and audit operations must function fully without Internet connectivity. |
 | NFR-8.2 | Restore operations must function without Internet connectivity, except when restore actions require downloading packages from external repositories via the target system's package managers. |
 | NFR-8.3 | The AI advisory capability must support a fully local operation mode that requires no network access. |
@@ -518,10 +518,10 @@ The system must provide a command-line interface as the primary interaction mode
 ### DR-1: Environment Manifest
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | DR-1.1 | The Environment Manifest must be a versioned, machine-readable, structured data format. |
 | DR-1.2 | The manifest must include the following top-level sections: metadata, platform, packages, services, user configuration, credentials, environment variables, scheduled tasks, network, cloud metadata, and user data. |
-| DR-1.3 | The manifest metadata must include: schema version, creation timestamp, source hostname, AERS version, and discovery duration. |
+| DR-1.3 | The manifest metadata must include: schema version, creation timestamp, source hostname, Telos version, and discovery duration. |
 | DR-1.4 | Each manifest entry must support annotations added by the classifier and AI advisory (role, importance, category, intent, confidence scores). |
 | DR-1.5 | Once produced by discovery, the manifest's discovery data must be immutable. Subsequent processing (classification, AI advisory) may only add or modify annotations — never alter discovered facts. |
 | DR-1.6 | The manifest must be serializable to and deserializable from a portable interchange format. |
@@ -532,7 +532,7 @@ The system must provide a command-line interface as the primary interaction mode
 ### DR-2: Backup Archive
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | DR-2.1 | Each backup archive must contain: captured artifacts, the Environment Manifest, the Backup Plan that produced it, and a cryptographic integrity hash manifest. |
 | DR-2.2 | Each archive must have a globally unique identifier (UUID). |
 | DR-2.3 | Each archive must record its creation timestamp. |
@@ -546,7 +546,7 @@ The system must provide a command-line interface as the primary interaction mode
 ### DR-3: Backup and Restore Plans
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | DR-3.1 | Backup Plans must include: plan metadata (version, creation timestamp, source manifest reference, estimated archive size), a list of capture actions (with action ID, category, method, source path, reason for inclusion, estimated size, importance, and credential isolation flag), a list of exclusions (with manifest entry reference and reason), and a list of warnings. |
 | DR-3.2 | Restore Plans must include: plan metadata (version, creation timestamp, target OS family, source manifest reference), ordered phases containing ordered actions (with action ID, type, target path, dependencies, rollback action, destructive flag, and approval requirement flag), a list of detected conflicts (with description and suggested resolution), and a list of warnings. |
 
@@ -555,7 +555,7 @@ The system must provide a command-line interface as the primary interaction mode
 ### DR-4: Verification Report
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | DR-4.1 | The Verification Report must list every difference between the post-restore manifest and the original manifest, classified by severity: Expected, Acceptable, Concerning, or Critical. |
 | DR-4.2 | The report must include a summary of total differences by severity and by manifest section. |
 | DR-4.3 | The report must include an overall pass/fail verdict based on configurable tolerance thresholds. |
@@ -565,7 +565,7 @@ The system must provide a command-line interface as the primary interaction mode
 ### DR-5: Diff Report
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | DR-5.1 | The Diff Report must compare two Environment Manifests and list every difference as an addition, removal, or modification, organized by manifest section. |
 | DR-5.2 | For modifications, the report must include the before and after values. |
 | DR-5.3 | The report must include a summary of total additions, removals, and modifications by section. |
@@ -575,7 +575,7 @@ The system must provide a command-line interface as the primary interaction mode
 ### DR-6: Audit Log
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | DR-6.1 | Audit logs must use structured entries with the following fields: timestamp, subsystem, operation, severity, message, and optional context. |
 | DR-6.2 | Audit logs must support the following severity levels: debug, info, warn, error, and audit. |
 | DR-6.3 | The `audit` severity level must be reserved for security-critical events: encryption, decryption, approval decisions, credential access, and archive verification outcomes. |
@@ -591,7 +591,7 @@ The system must provide a command-line interface as the primary interaction mode
 ### EIR-1: User Interface
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | EIR-1.1 | The user interface in Version 1 is a command-line interface. |
 | EIR-1.2 | The CLI must accept subcommands for each top-level operation: discover, backup, restore, verify, diff, schedule, and config. |
 | EIR-1.3 | The CLI must support three output modes: interactive (formatted with color and progress), plain (for piping), and structured data (for programmatic consumption). |
@@ -602,7 +602,7 @@ The system must provide a command-line interface as the primary interaction mode
 ### EIR-2: Plugin Interface
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | EIR-2.1 | The plugin interface must define a clear contract for each plugin type: Discovery, Classification Rule, Capture, Restore, and Storage. |
 | EIR-2.2 | Each plugin type must define its expected input and output formats. |
 | EIR-2.3 | Plugins must declare their target plugin interface version for compatibility enforcement. |
@@ -614,7 +614,7 @@ The system must provide a command-line interface as the primary interaction mode
 ### EIR-3: Storage Interface
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | EIR-3.1 | The storage interface must support the following operations: write archive, read archive by identifier, list archives with metadata, and delete archive. |
 | EIR-3.2 | The default storage backend must be the local filesystem. |
 | EIR-3.3 | Additional storage backends (external media, network-attached storage, cloud storage) must be implementable as storage plugins conforming to the storage interface. |
@@ -624,7 +624,7 @@ The system must provide a command-line interface as the primary interaction mode
 ### EIR-4: Operating System Interface
 
 | ID | Requirement |
-|----|------------|
+| ---- | ------------ |
 | EIR-4.1 | All interaction with the host operating system (file reads, package manager queries, service queries, credential detection) must occur through plugins. The core system must not interact with the OS directly for any platform-specific operation. |
 | EIR-4.2 | Version 1 must provide plugins for Ubuntu, Debian, and Windows. |
 
@@ -635,7 +635,7 @@ The system must provide a command-line interface as the primary interaction mode
 The following table summarizes what is included and excluded from Version 1, as determined by the fixed architecture decisions and the project Vision.
 
 | Capability | Version 1 Status |
-|-----------|-----------------|
+| ----------- | ----------------- |
 | Full backup (discover → plan → capture → encrypt → store) | ✅ Included |
 | Restore to compatible machine (same OS family, same CPU architecture) | ✅ Included |
 | Restoration assumes freshly installed OS | ✅ Included |
@@ -670,7 +670,7 @@ The following table summarizes what is included and excluded from Version 1, as 
 Every functional requirement traces to one or more principles from the [Project Vision](00_Vision.md) and subsystems from the [System Architecture](02_Architecture.md).
 
 | Requirement Group | Vision Principles | Architecture Subsystems |
-|------------------|------------------|------------------------|
+| ------------------ | ------------------ | ------------------------ |
 | FR-1: Discovery | Discovery Before Backup, Comprehension Precedes Action | S3 (Discovery Engine), S4 (Manifest), S12 (Plugin Host) |
 | FR-2: Classification | Intent Over Artifacts, Comprehension Precedes Action | S5 (Classifier), S13 (AI Advisory Layer) |
 | FR-3: Backup Planning | Minimum Backup Size Maximum Recoverability, Human Approval Before Destructive Operations, Transparency Is Non-Negotiable | S6 (Planner), S1 (CLI Shell — Approval Gate) |
@@ -696,4 +696,4 @@ Every functional requirement traces to one or more principles from the [Project 
 
 ---
 
-> **This document defines WHAT AERS must accomplish.** It does not prescribe implementation details or technology choices. Every requirement is traceable to the [Project Vision](00_Vision.md) and consistent with the [System Architecture](02_Architecture.md). If a future design decision conflicts with these requirements, the conflict must be resolved explicitly — either by updating the design or by amending this document through formal review.
+> **This document defines WHAT Telos must accomplish.** It does not prescribe implementation details or technology choices. Every requirement is traceable to the [Project Vision](00_Vision.md) and consistent with the [System Architecture](02_Architecture.md). If a future design decision conflicts with these requirements, the conflict must be resolved explicitly — either by updating the design or by amending this document through formal review.

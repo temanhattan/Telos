@@ -16,7 +16,7 @@ func TestEnvironmentManifestRepresentsAllDiscoverySections(t *testing.T) {
 }
 
 func TestArchiveReferencesTheDocumentedIdentityAndStorageFields(t *testing.T) {
-	archive := Archive{ID: ArchiveID("archive-1"), ManifestID: ManifestID("manifest-1"), Encryption: EncryptionAES256GCM, StorageLocations: []StorageLocation{{Backend: "local", Identifier: "backup.aers"}}}
+	archive := Archive{ID: ArchiveID("archive-1"), ManifestID: ManifestID("manifest-1"), Encryption: EncryptionAES256GCM, StorageLocations: []StorageLocation{{Backend: "local", Identifier: "backup.telos"}}}
 	if archive.ID == "" || archive.ManifestID == "" || archive.Encryption != EncryptionAES256GCM || len(archive.StorageLocations) != 1 {
 		t.Fatal("archive did not retain documented metadata")
 	}

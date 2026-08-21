@@ -1,4 +1,4 @@
-# AERS — System Architecture
+# Telos — System Architecture
 
 > **Status:** Draft
 > **Last Updated:** 2026-06-30
@@ -122,7 +122,7 @@ graph TB
 ## Subsystem Index
 
 | ID | Subsystem | Layer | Stability | Description |
-|----|-----------|-------|-----------|-------------|
+| ---- | ----------- | ------- | ----------- | ------------- |
 | S1 | CLI Shell | Surface | Stable | User-facing command interface and output formatting |
 | S2 | Orchestrator | Core | Stable | Pipeline coordinator; owns the lifecycle of every operation |
 | S3 | Discovery Engine | Core | Stable | Dispatches discovery requests to plugins and aggregates results |
@@ -193,7 +193,7 @@ The Approval Gate is the architectural enforcement of the vision principle *"Hum
 
 #### Purpose
 
-The Orchestrator is the central coordinator of AERS. It owns the lifecycle of every high-level operation — discover, backup, restore, verify, diff, schedule — and is responsible for invoking subsystems in the correct order, passing data between pipeline stages, and handling errors at the operation level.
+The Orchestrator is the central coordinator of Telos. It owns the lifecycle of every high-level operation — discover, backup, restore, verify, diff, schedule — and is responsible for invoking subsystems in the correct order, passing data between pipeline stages, and handling errors at the operation level.
 
 #### Responsibilities
 
@@ -215,7 +215,7 @@ The Orchestrator is the central coordinator of AERS. It owns the lifecycle of ev
 The Orchestrator defines the following top-level pipelines:
 
 | Pipeline | Stages (in order) |
-|----------|-------------------|
+| ---------- | ------------------- |
 | **Backup** | Discovery → Classification → Planning → Approval → Capture → Hashing → Encryption → Storage |
 | **Restore** | Archive Retrieval → Decryption → Integrity Verification → Manifest Loading → Restore Planning → Approval → Execution → Post-Restore Verification |
 | **Verify** | Discovery (current) → Manifest Loading (baseline) → Diff → Report |
@@ -251,7 +251,7 @@ The Discovery Engine is responsible for answering the question: *"What is on thi
 The Discovery Engine dispatches requests across the following categories, in order:
 
 | Order | Category | What it discovers |
-|-------|----------|------------------|
+| ------- | ---------- | ------------------ |
 | 1 | **Platform** | OS family, version, architecture, kernel, hostname, hardware profile |
 | 2 | **Packages** | Installed packages across all detected package managers, with versions |
 | 3 | **Services** | Running services/daemons, their configurations, and startup behavior |
@@ -300,7 +300,7 @@ Environment Manifest
 │   ├── schema_version
 │   ├── created_at
 │   ├── source_hostname
-│   ├── aers_version
+│   ├── telos_version
 │   └── discovery_duration
 ├── platform
 │   ├── os_family
@@ -561,7 +561,7 @@ The Storage Backend is the subsystem responsible for writing backup archives to 
 
 #### Purpose
 
-The Crypto Engine provides all cryptographic services for AERS. It is the single point of responsibility for encryption, decryption, hashing, signing, and verification. No other subsystem performs cryptographic operations directly.
+The Crypto Engine provides all cryptographic services for Telos. It is the single point of responsibility for encryption, decryption, hashing, signing, and verification. No other subsystem performs cryptographic operations directly.
 
 #### Responsibilities
 
@@ -622,7 +622,7 @@ The Restore Engine executes an approved Restore Plan against a target machine. I
 #### Restore Phases (Canonical Order)
 
 | Phase | Actions | Rationale |
-|-------|---------|-----------|
+| ------- | --------- | ----------- |
 | 1. Package Installation | Install packages via OS package managers | Packages must be installed before their configurations are applied |
 | 2. Configuration Application | Write configuration files, dot files, shell configs | Configs depend on the packages they configure |
 | 3. Credential Restoration | Restore SSH keys, GPG keys, API tokens (with separate decryption) | Credentials may be needed by services started in the next phase |
@@ -677,7 +677,7 @@ The Verification Engine answers the question: *"Does the restored environment ma
 
 #### Purpose
 
-The Plugin Host manages the lifecycle of all plugins in AERS. It is the boundary between the stable core and the evolving ecosystem of OS-specific, package-manager-specific, and cloud-specific extensions.
+The Plugin Host manages the lifecycle of all plugins in Telos. It is the boundary between the stable core and the extensible ecosystem, providing registration, validation, execution, and capability dispatch for all plugin types.
 
 #### Responsibilities
 
@@ -691,7 +691,7 @@ The Plugin Host manages the lifecycle of all plugins in AERS. It is the boundary
 #### Plugin Types
 
 | Type | Interface Provided To | Purpose |
-|------|----------------------|---------|
+| ------ | ---------------------- | --------- |
 | **Discovery Plugin** | S3 (Discovery Engine) | Discover environment components for a specific OS, package manager, or service |
 | **Classification Rule Plugin** | S5 (Classifier) | Provide OS-specific or domain-specific classification rules |
 | **Capture Plugin** | S7 (Capture Engine) | Export configurations or data in a platform-specific manner |
@@ -739,7 +739,7 @@ The AI Advisory Layer is the **lowest-priority input** in every decision chain. 
 #### Operational Modes
 
 | Mode | Behavior |
-|------|----------|
+| ------ | ---------- |
 | **Disabled** | AI layer is not loaded. All consuming subsystems use deterministic-only codepaths. |
 | **Local** | AI inference runs on-device using a bundled or user-provided model. No network access. |
 | **Cloud** (opt-in) | AI inference uses a cloud API. Never transmits backup contents or credentials. Transmits only anonymized manifest structure. |
@@ -749,7 +749,7 @@ The AI Advisory Layer is the **lowest-priority input** in every decision chain. 
 - The AI Advisory Layer **never executes actions.** It produces suggestions that are consumed by other subsystems.
 - The AI Advisory Layer **never accesses raw file contents.** It operates on manifest metadata only.
 - The AI Advisory Layer **never transmits sensitive data.** Even in cloud mode, only anonymized structural metadata is sent.
-- **AERS must be fully functional with the AI Advisory Layer disabled.**
+- **Telos must be fully functional with the AI Advisory Layer disabled.**
 
 ---
 
@@ -806,7 +806,7 @@ The Scheduler manages time-based triggers for automated backup operations. It al
 
 - The Scheduler **does not** execute backups itself. It invokes the Orchestrator's backup pipeline.
 - The Scheduler **does not** bypass the Approval Gate for the initial setup. The first scheduled backup requires user approval of the plan. Subsequent runs of an unchanged plan may run unattended if the user has opted in to auto-approval for recurring schedules.
-- The Scheduler **is optional.** AERS functions fully without scheduled backups; all operations can be triggered manually.
+- The Scheduler **is optional.** Telos functions fully without scheduled backups; all operations can be triggered manually.
 
 ---
 
@@ -851,15 +851,15 @@ Every operation that involves data access, modification, or security decisions p
 
 #### Purpose
 
-The Configuration Manager loads, validates, merges, and provides read-only access to all AERS configuration. It is the single source of truth for how AERS behaves on a given machine.
+The Configuration Manager loads, validates, merges, and provides read-only access to all Telos configuration. It is the single source of truth for how Telos behaves on a given machine.
 
 #### Responsibilities
 
 - Load configuration from a defined hierarchy of sources, in priority order:
   1. **CLI flags** (highest priority — per-invocation overrides).
-  2. **Environment variables** (session-level overrides).
-  3. **User configuration file** (persistent per-user settings, e.g., `~/.aers/config.yaml`).
-  4. **System configuration file** (machine-wide defaults, e.g., `/etc/aers/config.yaml`).
+  2. **Environment variables** (session-level overrides via `TELOS_*`).
+  3. **User configuration file** (persistent per-user settings, e.g., `~/.telos/config.yaml`).
+  4. **System configuration file** (machine-wide defaults, e.g., `/etc/telos/config.yaml`).
   5. **Built-in defaults** (lowest priority — hardcoded sensible defaults).
 - Merge configuration from all sources according to the priority hierarchy.
 - Validate the merged configuration against a schema: reject unknown keys, enforce required fields, validate types and ranges.
@@ -869,7 +869,7 @@ The Configuration Manager loads, validates, merges, and provides read-only acces
 #### Configuration Domains
 
 | Domain | Configurable Parameters |
-|--------|------------------------|
+| -------- | ------------------------ |
 | **Storage** | Archive output directory, retention policy, storage backend selection |
 | **Crypto** | Encryption algorithm, KDF parameters, GPG key ID for signing |
 | **Discovery** | Plugin directories, discovery timeout, excluded paths |
@@ -890,7 +890,7 @@ The Configuration Manager loads, validates, merges, and provides read-only acces
 ```mermaid
 flowchart TD
     subgraph INPUT["User Input"]
-        CMD["aers backup"]
+        CMD["telos backup"]
     end
 
     subgraph DISCOVER["Phase 1: Discover"]
@@ -937,7 +937,7 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph INPUT["User Input"]
-        CMD["aers restore --archive id"]
+        CMD["telos restore --archive id"]
     end
 
     subgraph RETRIEVE["Phase 1: Retrieve & Verify"]
@@ -982,7 +982,7 @@ flowchart TD
 
 ## Plugin Boundary Contract
 
-The plugin interface is the most important architectural boundary in AERS. It separates the stable core from the evolving ecosystem and must be designed for long-term stability.
+The plugin interface is the most important architectural boundary in Telos. It separates the stable core from the evolving ecosystem and must be designed for long-term stability.
 
 ### Principles
 
@@ -995,7 +995,7 @@ The plugin interface is the most important architectural boundary in AERS. It se
 ### Interface Summary
 
 | Plugin Type | Input | Output |
-|------------|-------|--------|
+| ------------ | ------- | -------- |
 | Discovery | OS context + discovery category | List of discovered entries for the manifest |
 | Classification Rule | Manifest entry | Importance score + annotations |
 | Capture | Backup Plan action + source path | Captured artifact bytes or export data |
@@ -1037,10 +1037,10 @@ flowchart TD
 
 ## Failure Model
 
-AERS is designed so that failures are **bounded, recoverable, and transparent.**
+Telos is designed so that failures are **bounded, recoverable, and transparent.**
 
 | Failure Scenario | Affected Subsystem | System Behavior |
-|-----------------|-------------------|----------------|
+| ----------------- | ------------------- | ---------------- |
 | Plugin crashes during discovery | S3, S12 | Log error. Mark the plugin's manifest section as `incomplete`. Continue with other plugins. Present incomplete manifest to user with warnings. |
 | File permission denied during capture | S7 | Log error for the specific artifact. Mark as `capture_failed` in archive. Continue with remaining artifacts. Report in summary. |
 | Encryption failure | S9 | Halt immediately. No partial archive is written to storage. Report error to user. |
@@ -1057,7 +1057,7 @@ AERS is designed so that failures are **bounded, recoverable, and transparent.**
 
 ### Concurrency
 
-AERS is designed as a **single-threaded, sequential pipeline** in its initial architecture. Each operation (backup, restore, verify) runs as a single linear process. There is no concurrent access to the manifest, archive, or storage. This simplifies reasoning about correctness, especially for cryptographic operations and file access.
+Telos is designed as a **single-threaded, sequential pipeline** in its initial architecture. Each operation (backup, restore, verify) runs as a single linear process. There is no concurrent access to the manifest, archive, or storage. This simplifies reasoning about correctness, especially for cryptographic operations and file access.
 
 Future optimization may introduce parallelism within specific stages (e.g., parallel file hashing during capture), but never across pipeline stages.
 
@@ -1074,7 +1074,7 @@ The core subsystems (S2, S4, S6, S9, S14, S16, S17) contain **zero platform-spec
 The architecture defines four formal extensibility points. All extension happens through these points — never by modifying core subsystem code.
 
 | Extensibility Point | Mechanism | Example |
-|---------------------|-----------|---------|
+| --------------------- | ----------- | --------- |
 | New OS support | Discovery + Restore plugins | Add Fedora support by writing an `rpm`/`dnf` discovery plugin and restore plugin |
 | New package manager | Discovery + Capture + Restore plugins | Add Homebrew support for macOS |
 | New storage backend | Storage plugin | Add S3 support by writing an S3 storage plugin |
@@ -1087,7 +1087,7 @@ The architecture defines four formal extensibility points. All extension happens
 The following constraints are **non-negotiable** and must be preserved across all future design decisions:
 
 | # | Constraint | Rationale | Vision Traceability |
-|---|-----------|-----------|-------------------|
+| --- | ----------- | ----------- | ------------------- |
 | 1 | The core contains zero OS-specific logic. | Ensures the plugin architecture is real, not aspirational. | *Modular Plugin Architecture* |
 | 2 | No backup data is stored in plaintext outside the source machine. | Zero-trust security model. | *Zero Trust* |
 | 3 | Every destructive operation passes through the Approval Gate. | Human authority over automation. | *Human Approval Before Destructive Operations* |
@@ -1106,7 +1106,7 @@ The following constraints are **non-negotiable** and must be preserved across al
 Every subsystem in this architecture is traceable to one or more principles defined in [00_Vision.md]:
 
 | Vision Principle | Implementing Subsystems |
-|-----------------|------------------------|
+| ----------------- | ------------------------ |
 | Discovery Before Backup | S3 (Discovery Engine), S4 (Manifest), S5 (Classifier) |
 | Intent Over Artifacts | S5 (Classifier), S13 (AI Advisory Layer) |
 | Minimum Backup Size, Maximum Recoverability | S6 (Planner) — reference capture over file copy |
@@ -1123,4 +1123,4 @@ Every subsystem in this architecture is traceable to one or more principles defi
 
 ---
 
-> **This document defines the structural skeleton of AERS.** Every subsystem, every boundary, and every data flow described here must be reflected in the implementation. If future implementation decisions conflict with this architecture, the conflict should be resolved explicitly — either by updating the implementation or by amending this document through a formal review.
+> **This document defines the structural skeleton of Telos.** Every subsystem, every boundary, and every data flow described here must be reflected in the implementation. If future implementation decisions conflict with this architecture, the conflict should be resolved explicitly — either by updating the implementation or by amending this document through a formal review.

@@ -41,7 +41,7 @@ V1 requires Landlock ABI v1 as the minimum security baseline. If the kernel does
 
 ## Supervisor/Re-exec Architecture
 
-Landlock restrictions are applied using the supervisor/re-exec pattern: AERS spawns a sandbox helper process (via `_AERS_SANDBOX=1` env var) that applies Landlock + seccomp to itself, then exec's the plugin executable. This keeps the AERS host process unrestricted. The sandbox helper validates its invocation strictly: verifies the env var, reads and validates the Policy from stdin, and fails closed on any malformed input.
+Landlock restrictions are applied using the supervisor/re-exec pattern: Telos spawns a sandbox helper process (via `_TELOS_SANDBOX=1` env var) that applies Landlock + seccomp to itself, then exec's the plugin executable. This keeps the Telos host process unrestricted. The sandbox helper validates its invocation strictly: verifies the env var, reads and validates the Policy from stdin, and fails closed on any malformed input.
 
 ## Why Linux-First
 
@@ -96,7 +96,7 @@ Landlock restrictions are applied using the supervisor/re-exec pattern: AERS spa
 - `internal/plugin/sandbox/seccomp_linux.go`: seccomp BPF filter construction with denylist and clone flag filtering.
 - `internal/plugin/sandbox/paths.go`: Path normalization and validation utilities.
 - `internal/plugin/host.go`: Integrated with `Sandbox` interface for plugin invocation.
-- `cmd/aers/main.go`: Sandbox helper entry point via `_AERS_SANDBOX=1` detection.
+- `cmd/telos/main.go`: Sandbox helper entry point via `_TELOS_SANDBOX=1` detection.
 
 # Related Documents
 

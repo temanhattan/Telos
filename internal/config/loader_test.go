@@ -18,7 +18,7 @@ storage:
 crypto:
   kdf_memory: 2048
 plugins:
-  io.aers.storage.s3:
+  io.telos.storage.s3:
     bucket: system-bucket
 `
 
@@ -28,7 +28,7 @@ storage:
 logging:
   level: debug
 plugins:
-  io.aers.storage.s3:
+  io.telos.storage.s3:
     bucket: user-bucket
     region: us-east-1
 `
@@ -72,7 +72,7 @@ plugins:
 	}
 
 	// Validate plugin config merge
-	s3Plugin := profile.PluginConfig("io.aers.storage.s3")
+	s3Plugin := profile.PluginConfig("io.telos.storage.s3")
 	if s3Plugin == nil {
 		t.Fatalf("Expected s3 plugin config to be parsed")
 	}
@@ -126,7 +126,7 @@ func TestStrictDecodingAcceptsUnknownPluginKeys(t *testing.T) {
 	// Plugins map should accept arbitrary keys safely
 	sysYAML := `
 plugins:
-  io.aers.discovery.apt:
+  io.telos.discovery.apt:
     foo: bar
 `
 	if err := os.WriteFile(sysFile, []byte(sysYAML), 0644); err != nil {
@@ -139,7 +139,7 @@ plugins:
 		t.Fatalf("Expected load to succeed for unknown plugin keys, got error: %v", err)
 	}
 
-	pluginCfg := profile.PluginConfig("io.aers.discovery.apt")
+	pluginCfg := profile.PluginConfig("io.telos.discovery.apt")
 	if pluginCfg["foo"] != "bar" {
 		t.Errorf("Expected plugin key 'foo' to be 'bar'")
 	}

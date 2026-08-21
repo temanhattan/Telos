@@ -7,7 +7,7 @@ import "time"
 func DefaultConfig() Config {
 	return Config{
 		Storage: StorageConfig{
-			OutputDir:       "/var/lib/aers/backups",
+			OutputDir:       "/var/lib/telos/backups",
 			RetentionPolicy: 5,
 			Backend:         "local",
 		},
@@ -18,7 +18,7 @@ func DefaultConfig() Config {
 			GPGKeyID:  "", // Disabled by default
 		},
 		Discovery: DiscoveryConfig{
-			PluginDirs: []string{"/var/lib/aers/plugins"},
+			PluginDirs: []string{"/var/lib/telos/plugins"},
 			Timeout:    5 * time.Minute,
 			ExcludedPaths: []string{
 				"/tmp", "/var/tmp", "/proc", "/sys", "/dev", "/run",
@@ -40,8 +40,8 @@ func DefaultConfig() Config {
 		},
 		Logging: LoggingConfig{
 			Level:      "info",
-			OutputPath: "/var/log/aers/aers.log",
-			AuditLog:   "/var/log/aers/audit.log",
+			OutputPath: "/var/log/telos/telos.log",
+			AuditLog:   "/var/log/telos/audit.log",
 		},
 		Plugins: make(map[string]map[string]any),
 	}

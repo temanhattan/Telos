@@ -1,4 +1,4 @@
-# AERS — Project Status
+# Telos — Project Status
 
 > **Status:** Active
 > **Last Updated:** 2026-08-21 (V1 Linux sandbox implementation)
@@ -29,7 +29,7 @@
 **Phase:** Foundation (Phase 1 of 4)
 **Completion Estimate:** ~10% of total V1 scope
 
-The AERS project has completed **extensive, production-grade documentation**, implemented the foundational **S4 domain vocabulary** and **S9 cryptographic primitives**, and now has a functional **S12 Plugin Host skeleton** alongside **S17 Configuration Manager** and **S16 Logging & Audit** foundations. Pipeline orchestration, archive creation, and the functional CLI remain unimplemented.
+The Telos project has completed **extensive, production-grade documentation**, implemented the foundational **S4 domain vocabulary** and **S9 cryptographic primitives**, and now has a functional **S12 Plugin Host skeleton** alongside **S17 Configuration Manager** and **S16 Logging & Audit** foundations. Pipeline orchestration, archive creation, and the functional CLI remain unimplemented.
 
 ### What exists
 
@@ -41,7 +41,7 @@ The AERS project has completed **extensive, production-grade documentation**, im
 | **Domain model (S4 foundation)** | Implemented in `internal/model`: behavior-free, platform-neutral types for the manifest and its sections, plans/actions, archive and integrity records, plugin metadata, approvals, restore results, and verification reports. Tested for representative manifest and archive construction. |
 | **Crypto Engine (S9 foundation)** | Implemented in `internal/crypto`: Argon2id key derivation, AES-256-GCM authenticated envelopes, general/credential key-purpose separation, SHA-256 hashing, and malformed-envelope work-factor bounds. Tested. GPG signing, archive-container serialization, and subsystem integration remain unimplemented. |
 | **Plugin Host (S12 skeleton + V1 sandbox)** | Implemented in `internal/plugin`: directory scanning, strict manifest parsing, interface/type/permission validation, duplicate-ID isolation, stable registration snapshots, bounded timed JSON subprocess invocation, and V1 OS-level plugin isolation on Linux (Landlock + seccomp + namespaces). Signature verification, capability-index dispatch, and non-Linux sandbox backends remain unimplemented. |
-| **CLI entry point** | Skeleton `cmd/aers/main.go` — creates a logger and invokes a placeholder subsystem. Not functional. |
+| **CLI entry point** | Skeleton `cmd/telos/main.go` — creates a logger and invokes a placeholder subsystem. Not functional. |
 | **Everything else** | Empty directories or does not exist. |
 
 ### What does NOT exist
@@ -156,7 +156,7 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 
 | ID | Subsystem | Planned Package | Blocked By |
 |----|-----------|----------------|------------|
-| S1 | CLI Shell | `cmd/aers` or `internal/cli` | S2 (Orchestrator) |
+| S1 | CLI Shell | `cmd/telos` or `internal/cli` | S2 (Orchestrator) |
 | S2 | Orchestrator | `internal/core` | S3, S6, S7, S9, S10, S16, S17 (leaf deps done) |
 | S3 | Discovery Engine | `internal/core` | S12 (Plugin Host) |
 | S4 | Environment Manifest | `internal/model` | Domain vocabulary implemented; manifest construction, sealing, and persistence remain to be implemented. |
@@ -274,11 +274,11 @@ The dependency footprint is minimal and intentional — three direct dependencie
 
 | ID | Severity | Location | Issue | Resolution |
 |----|----------|----------|-------|------------|
-| **TD-1** | Medium | `cmd/aers/main.go` | Placeholder `SomeSubsystem` in `core/` package. Not an architectural subsystem. Mixes demo code with production layout. | Remove `core/some_subsystem.go` and refactor `main.go` when CLI Shell (S1) is implemented. |
-| **TD-2** | Low | `internal/config/env_mapper.go` | Only supports 2 levels of nesting for env vars (e.g., `AERS_LOGGING_LEVEL`). Cannot map deeply nested plugin config from env vars. | Acceptable for V1; document the limitation. |
+| **TD-1** | Medium | `cmd/telos/main.go` | Placeholder `SomeSubsystem` in `core/` package. Not an architectural subsystem. Mixes demo code with production layout. | Remove `core/some_subsystem.go` and refactor `main.go` when CLI Shell (S1) is implemented. |
+| **TD-2** | Low | `internal/config/env_mapper.go` | Only supports 2 levels of nesting for env vars (e.g., `TELOS_LOGGING_LEVEL`). Cannot map deeply nested plugin config from env vars. | Acceptable for V1; document the limitation. |
 | **TD-3** | Low | `internal/logger/log.go:89` | `context.Value("correlation_id")` uses a bare string key instead of an unexported key type. Violates Go context best practices; risks collisions. | Define a private context key type: `type contextKey struct{}; var correlationIDKey = contextKey{}`. |
 | **TD-4** | Low | `internal/logger/log.go:60` | `AuditLevel` maps to `zerolog.InfoLevel`. Audit logs could be filtered out if the logger is set to `WarnLevel` or higher. | Audit should use `zerolog.Log()` (level-less) and always emit, which is actually what `Audit()` does at line 118. The `New()` level mapping on line 60 is misleading but not a bug since `Audit()` uses `.Log()` not `.Info()`. Consider removing the case or adding a comment. |
-| **TD-5** | Medium | `internal/config/defaults.go` | Default paths are Linux-only (`/var/lib/aers`, `/var/log/aers`). Windows support would require platform-aware defaults. | Address when adding cross-platform support. Use `os.UserConfigDir()` and `os.UserCacheDir()`. |
+| **TD-5** | Medium | `internal/config/defaults.go` | Default paths are Linux-only (`/var/lib/telos`, `/var/log/telos`). Windows support would require platform-aware defaults. | Address when adding cross-platform support. Use `os.UserConfigDir()` and `os.UserCacheDir()`. |
 | **TD-6** | Low | `internal/logger/log.go:71-73` | Console writer is activated for any `*os.File` writer, including file outputs. Structured JSON would be more appropriate for file outputs. | Add an explicit `UseConsole bool` option to the logger constructor. |
 | **TD-7** | Info | ADRs 0001–0008 | Empty stub files. Design decisions exist in canonical docs but not in ADR format. | Backfill ADRs from canonical docs when time permits. ADR-0009 is the template. |
 | **TD-8** | Info | `docs/06_Coding_Standards.md`, `docs/07_Roadmap.md` | Empty stub documents. | Write these before onboarding new contributors. |
@@ -305,12 +305,12 @@ If you clone this repository and run it, here is what you can actually do:
 ### Configuration Manager
 
 ```go
-import "AERS/internal/config"
+import "telos/internal/config"
 
 mgr := config.NewManager()
 profile, err := mgr.Load(config.LoadOptions{
-    SystemConfigFile: "/etc/aers/config.yaml",
-    UserConfigFile:   "~/.config/aers/config.yaml",
+    SystemConfigFile: "/etc/telos/config.yaml",
+    UserConfigFile:   "~/.config/telos/config.yaml",
     CLIOverrides: map[string]any{
         "logging": map[string]any{"level": "debug"},
     },
@@ -319,7 +319,7 @@ profile, err := mgr.Load(config.LoadOptions{
 cfg := profile.Config()              // Deep copy — safe to mutate
 src := profile.Source("logging.level") // → "cli"
 meta := profile.Metadata()            // Schema version, warnings
-pluginCfg := profile.PluginConfig("io.aers.storage.s3") // Plugin-specific config
+pluginCfg := profile.PluginConfig("io.telos.storage.s3") // Plugin-specific config
 ```
 
 **Capabilities:** Load YAML files, merge from 5 tiers, validate schema (reject unknown core keys, accept arbitrary plugin keys), validate business rules (warnings), expose immutable profile with source attribution, bulk error reporting.
@@ -327,7 +327,7 @@ pluginCfg := profile.PluginConfig("io.aers.storage.s3") // Plugin-specific confi
 ### Logger
 
 ```go
-import log "AERS/internal/logger"
+import log "telos/internal/logger"
 
 logger := log.New(log.InfoLevel, os.Stdout)
 logger = logger.WithComponent("discovery_engine")
@@ -340,7 +340,7 @@ logger.Error(err, "Plugin timed out")
 
 ### What you CANNOT do
 
-- Run `aers backup`, `aers restore`, `aers discover`, or any CLI command.
+- Run `telos backup`, `telos restore`, `telos discover`, or any CLI command.
 - Discover, classify, plan, capture, encrypt, store, or restore anything.
 - Integrate plugin discovery with the Discovery Engine or execute a full backup pipeline.
 - Create, read, or verify any backup archive.

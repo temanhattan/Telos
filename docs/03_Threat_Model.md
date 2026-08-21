@@ -1,4 +1,4 @@
-# AERS — Security Threat Model
+# Telos — Security Threat Model
 
 > **Status:** Draft
 > **Last Updated:** 2026-07-01
@@ -26,13 +26,13 @@
 
 ## 1. Purpose
 
-This document defines the comprehensive security threat model for AERS — the Adaptive Environment Recovery System.
+This document defines the comprehensive security threat model for Telos — the Adaptive Environment Recovery System.
 
-AERS operates on some of the most sensitive data a computing environment contains: encryption keys, SSH private keys, GPG secret keys, API tokens, database passwords, personal configuration, and irreplaceable user data. It captures this data, packages it into portable archives, and stores those archives on media that may be physically transportable or network-accessible. A security failure in AERS does not merely leak a file — it can expose the full identity and access surface of every machine in the user's fleet.
+Telos operates on some of the most sensitive data a computing environment contains: encryption keys, SSH private keys, GPG secret keys, API tokens, database passwords, personal configuration, and irreplaceable user data. It captures this data, packages it into portable archives, and stores those archives on media that may be physically transportable or network-accessible. A security failure in Telos does not merely leak a file — it can expose the full identity and access surface of every machine in the user's fleet.
 
 This threat model exists to:
 
-- **Identify** every significant asset that AERS must protect.
+- **Identify** every significant asset that Telos must protect.
 - **Map** the trust boundaries within and around the system.
 - **Enumerate** the threat actors, attack surfaces, and threat scenarios the architecture must defend against.
 - **Evaluate** the existing mitigations provided by the architecture and identify residual risks.
@@ -44,13 +44,13 @@ This document analyzes the architecture as defined in the source-of-truth docume
 
 ## 2. Security Objectives
 
-AERS defines the following primary security objectives, ordered by priority. When security objectives conflict, higher-priority objectives take precedence.
+Telos defines the following primary security objectives, ordered by priority. When security objectives conflict, higher-priority objectives take precedence.
 
 | Priority | Objective | Definition |
-|----------|-----------|------------|
+| ---------- | ----------- | ------------ |
 | 1 | **Confidentiality** | Backup archives, credentials, and sensitive configuration data must be protected from unauthorized disclosure at rest, in transit between subsystems, and during staging. No backup data may exist in plaintext outside the source machine's volatile memory during active operation. |
 | 2 | **Integrity** | Backup archives must be tamper-evident. Any modification — accidental or deliberate — to an archive after creation must be detectable before restore. The system must never silently restore corrupted or tampered data. |
-| 3 | **Authenticity** | The system must verify that a backup archive was produced by a legitimate AERS instance and has not been substituted. Optional digital signing provides non-repudiation and origin verification. |
+| 3 | **Authenticity** | The system must verify that a backup archive was produced by a legitimate Telos instance and has not been substituted. Optional digital signing provides non-repudiation and origin verification. |
 | 4 | **Privacy** | The system must minimize exposure of sensitive metadata. Logs must never contain secrets. AI cloud communication must transmit only anonymized structural metadata. Credential file paths are logged by basename only. |
 | 5 | **Availability** | The system must remain operational offline and tolerate partial failures without total loss of functionality. Plugin failures, discovery failures, and storage interruptions must not prevent the system from functioning at reduced capacity. |
 | 6 | **Non-repudiation** | When archives are digitally signed, it must be possible to verify that a specific user produced a specific archive at a specific time. Audit logs must record all security-critical decisions with sufficient detail for post-incident reconstruction. |
@@ -65,7 +65,7 @@ The following assets require protection. Each asset is classified by sensitivity
 ### 3.1 Critical Assets
 
 | Asset | Description | Primary Objective | Sensitivity |
-|-------|-------------|-------------------|-------------|
+| ------- | ------------- | ------------------- | ------------- |
 | **Credential materials** | SSH private keys, GPG secret keys, API tokens, certificates, database passwords captured under credential isolation. | Confidentiality | **Highest** — compromise grants access to external systems, repositories, and services. |
 | **Master passphrase** | The user-provided passphrase from which all encryption keys are derived. Exists only in volatile memory during operation. | Confidentiality | **Highest** — compromise exposes all backup archives. |
 | **Derived encryption keys** | Cryptographic keys derived from the master passphrase via KDF. Exist only in volatile memory during operation. | Confidentiality | **Highest** — compromise exposes the archive or credential segment they protect. |
@@ -74,7 +74,7 @@ The following assets require protection. Each asset is classified by sensitivity
 ### 3.2 High-Sensitivity Assets
 
 | Asset | Description | Primary Objective | Sensitivity |
-|-------|-------------|-------------------|-------------|
+| ------- | ------------- | ------------------- | ------------- |
 | **Environment Manifest** | Structured description of a discovered environment: installed packages, services, configurations, network settings, credential locations. | Confidentiality, Integrity | **High** — reveals the complete attack surface of the source machine. |
 | **Local encrypted manifest cache** | Encrypted copies of Environment Manifests stored locally for efficient comparison. | Confidentiality, Integrity | **High** — cache of manifest data; encrypted at rest. |
 | **User configuration** | Shell configurations, editor settings, dot files, environment variables. May contain embedded secrets. | Confidentiality | **High** — may inadvertently contain API keys, tokens, or passwords in environment variables or shell configs. |
@@ -84,9 +84,9 @@ The following assets require protection. Each asset is classified by sensitivity
 ### 3.3 Medium-Sensitivity Assets
 
 | Asset | Description | Primary Objective | Sensitivity |
-|-------|-------------|-------------------|-------------|
+| ------- | ------------- | ------------------- | ------------- |
 | **Plugin packages** | Executable code loaded and run by the Plugin Host. Official, community, and unsigned trust tiers. | Integrity, Authenticity | **Medium** — malicious plugins execute within the sandbox but may attempt privilege escalation. |
-| **AERS configuration files** | User and system configuration files controlling AERS behavior: storage paths, encryption parameters, plugin directories, trust policies. | Integrity | **Medium** — manipulation can weaken security posture (e.g., enabling unsigned plugins, changing storage locations). |
+| **Telos configuration files** | User and system configuration files controlling Telos behavior: storage paths, encryption parameters, plugin directories, trust policies. | Integrity | **Medium** — manipulation can weaken security posture (e.g., enabling unsigned plugins, changing storage locations). |
 | **Audit logs** | Structured, append-only records of all operations, decisions, and security events. | Integrity, Availability | **Medium** — tampering hides evidence of attack; deletion removes accountability. |
 | **Verification and Diff Reports** | Structured comparisons of environments before and after operations. | Integrity | **Medium** — falsification could mask incomplete or compromised restores. |
 | **Restore checkpoints** | State markers enabling resumption of interrupted restore operations. | Integrity | **Medium** — corruption could cause re-execution of destructive actions or skip required steps. |
@@ -94,7 +94,7 @@ The following assets require protection. Each asset is classified by sensitivity
 ### 3.4 Informational Assets
 
 | Asset | Description | Primary Objective | Sensitivity |
-|-------|-------------|-------------------|-------------|
+| ------- | ------------- | ------------------- | ------------- |
 | **Approval decisions** | Records of user approval or rejection of execution plans. | Non-repudiation | **Low** — recorded in audit logs; informational value for accountability. |
 | **AI advisory suggestions** | Non-binding classification and conflict predictions with confidence scores. | Integrity | **Low** — manipulation could mislead but cannot bypass deterministic logic or approval gates. |
 | **Plugin capability registry** | In-memory index of registered plugin capabilities. | Availability | **Low** — reconstructed at startup from plugin manifests. |
@@ -103,7 +103,7 @@ The following assets require protection. Each asset is classified by sensitivity
 
 ## 4. Trust Boundaries
 
-The AERS architecture defines the following trust boundaries. Data crossing a trust boundary requires explicit security controls.
+The Telos architecture defines the following trust boundaries. Data crossing a trust boundary requires explicit security controls.
 
 ### 4.1 Trust Boundary Map
 
@@ -149,7 +149,7 @@ flowchart TD
 ### 4.2 Trust Boundary Definitions
 
 | ID | Boundary | Data Crossing | Security Controls |
-|----|----------|---------------|-------------------|
+| ---- | ---------- | --------------- | ------------------- |
 | **TB-1** | User ↔ CLI Shell | Commands, passphrases, approval decisions. | Input validation, command parsing, passphrase handling in volatile memory only. |
 | **TB-2** | CLI Shell ↔ Core (Orchestrator) | Parsed commands, user decisions, formatted outputs. | CLI contains no business logic. Orchestrator validates all inputs. Approval Gate enforces human authority. |
 | **TB-3** | Core ↔ Plugins | Discovery requests, capture requests, restore requests, plugin responses. | Subprocess isolation, sandbox enforcement, permission declaration and enforcement, timeout enforcement, response schema validation, trust verification, signature validation. |
@@ -163,16 +163,16 @@ flowchart TD
 
 ## 5. Threat Actors
 
-The following threat actors represent plausible adversaries against an AERS deployment. Each actor is characterized by capability, motivation, and access level.
+The following threat actors represent plausible adversaries against a Telos deployment. Each actor is characterized by capability, motivation, and access level.
 
 | ID | Actor | Capability | Motivation | Access |
-|----|-------|-----------|------------|--------|
+| ---- | ------- | ----------- | ------------ | -------- |
 | **TA-1** | **Malware on host** | Moderate to high. Runs with user or elevated privileges on the source or target machine. | Exfiltrate credentials, inject backdoors, persist across rebuilds. | Local filesystem access, process memory access, ability to read/modify files owned by the user. |
 | **TA-2** | **Malicious plugin** | Moderate. Operates within the plugin sandbox but may attempt escape. | Exfiltrate data during capture or restore, inject persistent backdoors into restored environments, tamper with discovery results. | Plugin subprocess permissions, declared filesystem scope, declared subprocess list. |
 | **TA-3** | **Stolen storage media** | Low to moderate. Possesses a USB drive, external disk, or NAS share containing backup archives. | Extract credentials, personal data, and environment information from offline archives. | Physical or network access to encrypted backup archives. No access to the source machine or passphrase. |
-| **TA-4** | **Insider (curious user)** | Low. Has legitimate access to the machine but not to AERS backups. | Browse backup contents out of curiosity or opportunism. | Local filesystem access. No passphrase knowledge. |
+| **TA-4** | **Insider (curious user)** | Low. Has legitimate access to the machine but not to Telos backups. | Browse backup contents out of curiosity or opportunism. | Local filesystem access. No passphrase knowledge. |
 | **TA-5** | **Remote attacker** | Moderate to high. Network-based attacker targeting cloud storage, AI cloud endpoints, or network-attached storage. | Intercept or exfiltrate backup data, inject tampered archives, conduct man-in-the-middle attacks. | Network access to storage endpoints or AI cloud APIs. |
-| **TA-6** | **Supply chain attacker** | High. Compromises the plugin distribution chain, plugin signing keys, or AERS dependencies. | Distribute trojanized plugins, compromise the integrity of the plugin trust chain. | Ability to produce signed or plausible plugin packages that pass trust verification. |
+| **TA-6** | **Supply chain attacker** | High. Compromises the plugin distribution chain, plugin signing keys, or Telos dependencies. | Distribute trojanized plugins, compromise the integrity of the plugin trust chain. | Ability to produce signed or plausible plugin packages that pass trust verification. |
 | **TA-7** | **Physical attacker** | Low. Has brief physical access to the source or target machine. | Extract passphrase from running process memory, copy staging files, tamper with configuration. | Physical access to an unlocked machine. |
 
 ---
@@ -186,6 +186,7 @@ Each attack surface represents a point where a threat actor can interact with or
 **Entry point:** Plugin Host (S12) scans configured directories, loads manifests, and spawns plugin subprocesses.
 
 **Attack vectors:**
+
 - Placing a malicious plugin in a configured plugin directory.
 - Replacing a legitimate plugin package with a trojanized version.
 - Exploiting sandbox weaknesses to escape declared permission scope.
@@ -201,6 +202,7 @@ Each attack surface represents a point where a threat actor can interact with or
 **Entry point:** Configuration Manager (S17) reads from user configuration files, system configuration files, environment variables, and CLI flags.
 
 **Attack vectors:**
+
 - Modifying the user or system configuration file to weaken security (e.g., enabling unsigned plugins, changing storage location to attacker-controlled path, disabling AI safety constraints).
 - Injecting malicious values through environment variables.
 - Manipulating the plugin directory path to point to attacker-controlled directories.
@@ -215,6 +217,7 @@ Each attack surface represents a point where a threat actor can interact with or
 **Entry point:** Restore Engine (S10) executes an approved Restore Plan on the target machine.
 
 **Attack vectors:**
+
 - Injecting a tampered backup archive that passes signature checks (if signing key is compromised).
 - Exploiting a restore plugin to write to paths outside its declared scope.
 - Manipulating checkpoint files to cause re-execution of destructive actions or skip security-critical steps.
@@ -229,6 +232,7 @@ Each attack surface represents a point where a threat actor can interact with or
 **Entry point:** Encrypted archives stored on local filesystem, external media, or network-attached storage.
 
 **Attack vectors:**
+
 - Offline brute-force attack against the master passphrase.
 - Side-channel attacks during encryption/decryption.
 - Copying archives from unattended storage media.
@@ -244,6 +248,7 @@ Each attack surface represents a point where a threat actor can interact with or
 **Entry point:** Storage Backend (S8) writes and reads encrypted archives to/from durable storage.
 
 **Attack vectors:**
+
 - Compromising cloud storage credentials (for future cloud storage plugins).
 - Man-in-the-middle attacks on network storage connections.
 - Storage backend plugin returning a modified archive during read operations.
@@ -258,6 +263,7 @@ Each attack surface represents a point where a threat actor can interact with or
 **Entry point:** CLI Shell (S1) accepts user commands and passphrases.
 
 **Attack vectors:**
+
 - Shoulder surfing or keylogging during passphrase entry.
 - Shell history capturing passphrases passed as command-line arguments.
 - Piping attacks substituting approval responses to bypass the Approval Gate.
@@ -272,6 +278,7 @@ Each attack surface represents a point where a threat actor can interact with or
 **Entry point:** Discovery Engine (S3) dispatches read-only scans of the source machine through plugins.
 
 **Attack vectors:**
+
 - A compromised source machine presenting false discovery results to embed backdoors in the backup.
 - Discovery plugins reading credential file contents during discovery (violating the behavioral contract).
 - TOCTOU (time-of-check-time-of-use) attacks where files change between discovery and capture.
@@ -285,6 +292,7 @@ Each attack surface represents a point where a threat actor can interact with or
 **Entry point:** Master passphrase entry, key derivation, credential isolation segment, in-memory key handling.
 
 **Attack vectors:**
+
 - Memory dumping to extract passphrase or derived keys from process memory.
 - Swap file or hibernation file containing memory contents with key material.
 - Core dump files including cryptographic material.
@@ -299,6 +307,7 @@ Each attack surface represents a point where a threat actor can interact with or
 **Entry point:** Logging & Audit Subsystem (S16) writes structured logs to append-only local storage.
 
 **Attack vectors:**
+
 - Tampering with or deleting log files to hide evidence of attack.
 - Injecting false log entries to create alibi.
 - Exploiting log parsing to inject malicious payloads (log injection).
@@ -312,6 +321,7 @@ Each attack surface represents a point where a threat actor can interact with or
 **Entry point:** AI Advisory Layer (S13) processes manifest metadata and optionally communicates with cloud APIs.
 
 **Attack vectors:**
+
 - Adversarial manipulation of manifest data to bias AI suggestions (e.g., causing AI to classify a backdoor as benign).
 - Interception of cloud AI communications to extract anonymized metadata.
 - AI model poisoning if user-provided or community models are used.
@@ -327,7 +337,7 @@ Threats are organized using the STRIDE classification framework. Each threat is 
 **Risk Level Matrix:**
 
 | | Low Impact | Medium Impact | High Impact | Critical Impact |
-|--|-----------|---------------|-------------|-----------------|
+| -- | ----------- | --------------- | ------------- | ----------------- |
 | **High Likelihood** | Medium | High | Critical | Critical |
 | **Medium Likelihood** | Low | Medium | High | Critical |
 | **Low Likelihood** | Low | Low | Medium | High |
@@ -339,7 +349,7 @@ Threats are organized using the STRIDE classification framework. Each threat is 
 Threats where an attacker impersonates a legitimate entity.
 
 | ID | Threat | Impact | Likelihood | Risk | Existing Mitigations | Residual Risk |
-|----|--------|--------|-----------|------|---------------------|---------------|
+| ---- | -------- | -------- | ----------- | ------ | --------------------- | --------------- |
 | S-01 | **Spoofed plugin.** An attacker places a malicious plugin in a configured plugin directory that impersonates a legitimate plugin. | **Critical** — malicious code executes during discovery, capture, or restore with declared permissions. | Medium | **Critical** | Plugin signature verification. Trust model (Official/Community/Unsigned). Unsigned plugins disabled by default. Community plugins require explicit user approval. Manifest validation and interface version checks. | If the attacker gains write access to plugin directories and can produce a validly signed package (supply chain compromise), spoofed plugins may pass verification. Residual risk is **medium** against supply chain attacks. |
 | S-02 | **Spoofed backup archive.** An attacker substitutes a legitimate backup archive with a crafted one containing backdoored configurations. | **Critical** — restoring a spoofed archive installs attacker-controlled services, credentials, or cron jobs on the target machine. | Low | **High** | Integrity hash manifest verified before restore. Optional GPG signature verification. Approval Gate presents the full restore plan for user review. | If the archive is not signed (signing is optional), the attacker need only match the encryption format. If signed, the attacker must also compromise the signing key. Residual risk is **medium** without signing, **low** with signing. |
 | S-03 | **Spoofed configuration source.** An attacker modifies environment variables or configuration files to inject malicious settings. | **High** — can redirect storage, weaken encryption, enable unsigned plugins, or alter plugin paths. | Medium | **High** | Configuration schema validation. Priority hierarchy (CLI > env vars > user config > system config > defaults). Startup halt on validation failure. | Schema validation catches structurally invalid configuration but may not detect semantically malicious but syntactically valid values (e.g., a valid path pointing to an attacker-controlled directory). Residual risk is **medium**. |
@@ -351,7 +361,7 @@ Threats where an attacker impersonates a legitimate entity.
 Threats where an attacker modifies data without authorization.
 
 | ID | Threat | Impact | Likelihood | Risk | Existing Mitigations | Residual Risk |
-|----|--------|--------|-----------|------|---------------------|---------------|
+| ---- | -------- | -------- | ----------- | ------ | --------------------- | --------------- |
 | T-01 | **Tampered backup archive.** An attacker modifies an encrypted archive on storage media — flipping bits, truncating data, or performing controlled modifications. | **High** — if undetected, corrupted data is restored to the target machine. | Medium | **High** | SHA-256 integrity hashes for every artifact. Hash manifest verified before restore. Archive-level integrity hash verified on retrieval. Optional GPG signature. | The integrity verification chain provides strong detection. If all verification passes, tampering is detected. Residual risk is **low** — limited to implementation defects in the verification chain itself. |
 | T-02 | **Tampered Environment Manifest.** An attacker or malicious plugin modifies the manifest to inject false discovery data. | **High** — false manifest entries lead to incorrect backup plans (missing critical data) or incorrect restore plans (installing unwanted software). | Low | **Medium** | Manifest immutability contract (discovery data is frozen after creation). Classifier and AI may only add annotations. Manifest stored inside encrypted archive. | Immutability is an architectural contract enforced at the design level. A compromised core could bypass it. Residual risk is **low** — requires core compromise. |
 | T-03 | **Tampered audit logs.** An attacker modifies or deletes log files to conceal unauthorized operations. | **Medium** — loss of accountability and forensic evidence. | Medium | **Medium** | Append-only log storage. Structured log format. | Append-only is a design constraint, not a cryptographic guarantee. An attacker with filesystem write access to the log directory can modify or delete log files. Residual risk is **medium** — mitigated in future by cryptographic log chaining. |
@@ -365,7 +375,7 @@ Threats where an attacker modifies data without authorization.
 Threats where an actor denies having performed an action.
 
 | ID | Threat | Impact | Likelihood | Risk | Existing Mitigations | Residual Risk |
-|----|--------|--------|-----------|------|---------------------|---------------|
+| ---- | -------- | -------- | ----------- | ------ | --------------------- | --------------- |
 | R-01 | **Denied approval.** A user claims they did not approve a destructive restore operation. | **Medium** — inability to establish accountability for data modification. | Low | **Low** | Approval decisions are logged at `audit` severity. Audit log records who initiated the operation, what was approved, and when. | Archive signing provides non-repudiation for archive creation. Approval logging provides an audit trail for restore decisions. Log tampering (T-03) weakens this guarantee. Residual risk is **low** with intact logs. |
 | R-02 | **Denied archive creation.** A user or attacker claims a specific backup archive was not created by them. | **Low** — primarily relevant in future multi-user scenarios. | Low | **Low** | Optional GPG signing provides non-repudiation. Archive metadata includes creation timestamp and source hostname. Audit log records backup operations. | Without GPG signing (signing is optional), non-repudiation is based on audit logs alone. Residual risk is **low** for single-user deployments, **medium** if multi-user support is added in the future. |
 
@@ -376,7 +386,7 @@ Threats where an actor denies having performed an action.
 Threats where sensitive data is exposed to unauthorized parties.
 
 | ID | Threat | Impact | Likelihood | Risk | Existing Mitigations | Residual Risk |
-|----|--------|--------|-----------|------|---------------------|---------------|
+| ---- | -------- | -------- | ----------- | ------ | --------------------- | --------------- |
 | I-01 | **Credential exposure from stolen archive.** An attacker obtains a backup archive from stolen storage media and attempts to extract credentials. | **Critical** — exposure of SSH keys, GPG keys, API tokens, and database passwords grants access to the user's entire infrastructure. | Medium | **Critical** | AES-256 encryption. Credential isolation with separate key derivation. Strong KDF (Argon2) protecting against brute-force. | Security depends entirely on passphrase strength. A weak passphrase renders all encryption ineffective. Residual risk is **high** with weak passphrases, **low** with strong passphrases. The system does not enforce passphrase complexity. |
 | I-02 | **Plaintext data in staging.** During backup, plaintext artifacts exist temporarily in a staging area before encryption. | **High** — if the staging area is accessible, plaintext data can be read by other processes or users. | Medium | **High** | NFR-1.1 prohibits plaintext data outside the source machine, including in local staging areas. The Crypto Engine encrypts before writing to storage. | The staging area is a transient window where plaintext exists on disk. A concurrent process or malware (TA-1) could read the staging directory. Residual risk is **medium** — duration of exposure is bounded but nonzero. |
 | I-03 | **Memory disclosure.** An attacker extracts passphrase or derived keys from process memory, swap files, or core dumps. | **Critical** — passphrase compromise exposes all archives. | Low | **High** | Keys are transient (NFR-1.7). Keys are never persisted. Keys are never transmitted (NFR-1.8). | The architecture mandates transient key handling but does not prescribe secure memory primitives (locked pages, zeroing on deallocation). OS-level memory protections are an implementation concern. Residual risk is **medium** — depends on implementation-level memory handling. |
@@ -391,7 +401,7 @@ Threats where sensitive data is exposed to unauthorized parties.
 Threats that prevent the system from functioning as intended.
 
 | ID | Threat | Impact | Likelihood | Risk | Existing Mitigations | Residual Risk |
-|----|--------|--------|-----------|------|---------------------|---------------|
+| ---- | -------- | -------- | ----------- | ------ | --------------------- | --------------- |
 | D-01 | **Storage exhaustion.** An attacker or runaway process fills the storage volume, preventing new backups. | **Medium** — inability to create new backups; existing archives are unaffected. | Medium | **Medium** | FR-9.4 requires storage space monitoring and user warnings. Retention policies manage archive lifecycle. | The system warns but does not enforce hard quotas. An automated scheduled backup that fills storage silently is a risk. Residual risk is **low** — monitoring and retention are in place. |
 | D-02 | **Plugin resource exhaustion.** A malicious or buggy plugin consumes excessive CPU, memory, or disk, degrading host performance. | **Medium** — degrades or prevents backup/restore operations. | Medium | **Medium** | Timeout enforcement on plugin invocations. Process isolation (subprocess model). Plugin Host terminates timed-out plugins. | Timeout limits execution time but not memory or disk consumption within the timeout window. A plugin could allocate excessive memory before timeout triggers. Residual risk is **medium** — resource limits beyond timeout are not specified. |
 | D-03 | **Archive corruption on storage.** Storage media degradation or accidental overwrite corrupts a backup archive. | **High** — loss of backup data. | Low | **Medium** | Integrity verification on retrieval detects corruption. User is notified before any restore from corrupted archives. | Detection is strong, but recovery is not addressed — a corrupted archive is rejected but not repaired. If the only copy is corrupted, data is lost. Residual risk is **medium** — mitigated by keeping multiple archive copies (not enforced by the system). |
@@ -404,10 +414,10 @@ Threats that prevent the system from functioning as intended.
 Threats where an attacker gains unauthorized capabilities.
 
 | ID | Threat | Impact | Likelihood | Risk | Existing Mitigations | Residual Risk |
-|----|--------|--------|-----------|------|---------------------|---------------|
-| E-01 | **Plugin sandbox escape.** A malicious plugin escapes its declared permission scope to access files, network, or subprocesses beyond its declaration. | **Critical** — unrestricted access to the host system from within the AERS process context. | Low | **High** | V1 Linux sandbox: Landlock filesystem restrictions (kernel-enforced inode-level path boundaries, ABI v1 minimum, fails closed if unavailable). seccomp-BPF syscall denylist (defense-in-depth reduction of privileged operations — **not** complete syscall confinement; includes clone/clone3 flag filtering to deny `CLONE_NEW*` namespace-creation variants). Network namespace isolation (no connectivity when `Network=false`). PID namespace (no host process visibility). `setns` and `unshare` denied outright. `PR_SET_NO_NEW_PRIVS`. Resource limits via `prlimit`. Bounded execution timeout with process-tree termination. Output size limits. Permission violations logged at `audit` severity. Non-Linux: application-level enforcement only. | V1 provides strong OS-level isolation on Linux ≥5.13 through Landlock filesystem enforcement, namespace isolation, and seccomp syscall reduction. However, **sandbox escape remains a critical-impact threat.** The actual residual risk depends on: (1) kernel integrity — a kernel vulnerability could bypass all userspace sandboxing; (2) correct sandbox configuration — misconfigured Landlock rules or an incomplete seccomp denylist leave gaps; (3) implementation correctness — bugs in the sandbox helper or policy construction could weaken guarantees. **A definitive residual risk rating (e.g., "low") requires independent penetration testing and security review, not merely an implementation plan.** The seccomp component specifically uses a denylist approach (defense-in-depth, not complete syscall confinement) — "OS-level isolation" must not be read as "full syscall confinement." On non-Linux platforms, residual risk is **high** — only application-level enforcement is available. |
+| ---- | -------- | -------- | ----------- | ------ | --------------------- | --------------- |
+| E-01 | **Plugin sandbox escape.** A malicious plugin escapes its declared permission scope to access files, network, or subprocesses beyond its declaration. | **Critical** — unrestricted access to the host system from within the Telos process context. | Low | **High** | V1 Linux sandbox: Landlock filesystem restrictions (kernel-enforced inode-level path boundaries, ABI v1 minimum, fails closed if unavailable). seccomp-BPF syscall denylist (defense-in-depth reduction of privileged operations — **not** complete syscall confinement; includes clone/clone3 flag filtering to deny `CLONE_NEW*` namespace-creation variants). Network namespace isolation (no connectivity when `Network=false`). PID namespace (no host process visibility). `setns` and `unshare` denied outright. `PR_SET_NO_NEW_PRIVS`. Resource limits via `prlimit`. Bounded execution timeout with process-tree termination. Output size limits. Permission violations logged at `audit` severity. Non-Linux: application-level enforcement only. | V1 provides strong OS-level isolation on Linux ≥5.13 through Landlock filesystem enforcement, namespace isolation, and seccomp syscall reduction. However, **sandbox escape remains a critical-impact threat.** The actual residual risk depends on: (1) kernel integrity — a kernel vulnerability could bypass all userspace sandboxing; (2) correct sandbox configuration — misconfigured Landlock rules or an incomplete seccomp denylist leave gaps; (3) implementation correctness — bugs in the sandbox helper or policy construction could weaken guarantees. **A definitive residual risk rating (e.g., "low") requires independent penetration testing and security review, not merely an implementation plan.** The seccomp component specifically uses a denylist approach (defense-in-depth, not complete syscall confinement) — "OS-level isolation" must not be read as "full syscall confinement." On non-Linux platforms, residual risk is **high** — only application-level enforcement is available. |
 | E-02 | **Restore plugin privilege escalation.** A restore plugin uses its legitimate write permissions and subprocess access to install persistent backdoors on the target machine. | **Critical** — attacker gains persistent access to the target machine. | Low | **High** | Restore plugins must report every change in `changes_made`. Approval Gate reviews the restore plan before execution. Audit logging records all restore actions. Plugin trust model restricts which plugins are loaded. | A trusted (Official) plugin that is compromised (supply chain attack) or a community plugin that is approved by a tricked user can execute arbitrary restore actions. The system audits and reports these actions but does not prevent them if the plugin is loaded and the plan is approved. Residual risk is **medium** — the Approval Gate is the primary defense, and it depends on user vigilance. |
-| E-03 | **Configuration escalation.** An attacker modifies AERS configuration to grant themselves broader capabilities (e.g., enabling unsigned plugins, changing plugin paths, weakening encryption parameters). | **High** — indirectly enables further attacks by weakening the security posture. | Medium | **High** | Configuration schema validation. Startup halt on invalid configuration. Priority hierarchy requires higher-priority sources to override lower. | An attacker with write access to user configuration files (`~/.aers/config.yaml`) can modify the configuration to weaken security while remaining schema-valid. Residual risk is **medium** — semantically valid but malicious configuration is hard to detect. |
+| E-03 | **Configuration escalation.** An attacker modifies Telos configuration to grant themselves broader capabilities (e.g., enabling unsigned plugins, changing plugin paths, weakening encryption parameters). | **High** — indirectly enables further attacks by weakening the security posture. | Medium | **High** | Configuration schema validation. Startup halt on invalid configuration. Priority hierarchy requires higher-priority sources to override lower. | An attacker with write access to user configuration files (`~/.telos/config.yaml`) can modify the configuration to weaken security while remaining schema-valid. Residual risk is **medium** — semantically valid but malicious configuration is hard to detect. |
 | E-04 | **Discovery-to-capture credential escalation.** A discovery plugin violates its behavioral contract and reads credential file contents during discovery, when it should only report location and type. | **High** — credentials captured outside the credential isolation boundary, potentially stored without proper encryption tier. | Low | **Medium** | Discovery plugins must not read credential contents (behavioral contract). Plugin sandbox restricts filesystem access to declared paths. Credential isolation enforced structurally by Capture Engine. | If the plugin's declared filesystem read permissions include credential directories (necessary for detecting credential locations), the sandbox cannot distinguish between reading metadata and reading contents. Enforcement depends on the plugin honoring the behavioral contract. Residual risk is **medium** — behavioral contract enforcement is not cryptographic. |
 
 ---
@@ -417,14 +427,14 @@ Threats where an attacker gains unauthorized capabilities.
 The following assumptions underpin the security model. If any assumption is violated, the corresponding threats must be re-evaluated.
 
 | ID | Assumption | Justification | Threats Affected if Violated |
-|----|-----------|---------------|------------------------------|
-| **SA-1** | The user selects a strong master passphrase. | The entire confidentiality guarantee of backup archives rests on passphrase entropy. AERS derives all encryption keys from this passphrase. | I-01 (credential exposure from stolen archive) becomes **critical**. All archives become vulnerable to brute-force. |
-| **SA-2** | The source machine is not actively compromised during backup. | If the source machine's OS kernel or core utilities are compromised, AERS cannot trust the results of discovery or capture — it is operating on poisoned ground. | T-02 (tampered manifest), E-04 (credential escalation), S-02 (spoofed archive). The entire backup may contain backdoored data that AERS faithfully captures. |
-| **SA-3** | The AERS binary itself is not tampered. | If the AERS executable is modified, all security controls (encryption, verification, sandbox enforcement) are rendered meaningless. | All threats. The system becomes an attacker tool. |
+| ---- | ----------- | --------------- | ------------------------------ |
+| **SA-1** | The user selects a strong master passphrase. | The entire confidentiality guarantee of backup archives rests on passphrase entropy. Telos derives all encryption keys from this passphrase. | I-01 (credential exposure from stolen archive) becomes **critical**. All archives become vulnerable to brute-force. |
+| **SA-2** | The source machine is not actively compromised during backup. | If the source machine's OS kernel or core utilities are compromised, Telos cannot trust the results of discovery or capture — it is operating on poisoned ground. | T-02 (tampered manifest), E-04 (credential escalation), S-02 (spoofed archive). The entire backup may contain backdoored data that Telos faithfully captures. |
+| **SA-3** | The Telos binary itself is not tampered. | If the Telos executable is modified, all security controls (encryption, verification, sandbox enforcement) are rendered meaningless. | All threats. The system becomes an attacker tool. |
 | **SA-4** | The operating system provides basic process isolation. | Plugin subprocess isolation depends on OS-level process boundaries. If the OS does not enforce process memory isolation, plugins can access core memory. | E-01 (sandbox escape). Plugin isolation degrades to advisory. |
-| **SA-5** | The AERS project signing key is not compromised. | Official plugin trust depends on signature verification against the project key. | S-01 (spoofed plugin), T-05 (tampered plugin). Supply chain attacks become undetectable. |
+| **SA-5** | The Telos project signing key is not compromised. | Official plugin trust depends on signature verification against the project key. | S-01 (spoofed plugin), T-05 (tampered plugin). Supply chain attacks become undetectable. |
 | **SA-6** | Configured plugin directories are writable only by the user. | If other users or processes can write to plugin directories, they can install malicious plugins. | S-01 (spoofed plugin), E-01 (sandbox escape). |
-| **SA-7** | The target machine's base OS is clean before restore. | AERS assumes a freshly installed OS (Constraint C-2). If the base OS is compromised, the restore builds on tainted foundations. | E-02 (restore privilege escalation). The attacker controls the foundation before AERS begins. |
+| **SA-7** | The target machine's base OS is clean before restore. | Telos assumes a freshly installed OS (Constraint C-2). If the base OS is compromised, the restore builds on tainted foundations. | E-02 (restore privilege escalation). The attacker controls the foundation before Telos begins. |
 | **SA-8** | External package repositories return correct packages. | Packages captured by reference are reinstalled from external repositories during restore. If a repository is compromised, the restored packages may be malicious. | S-02 (spoofed archive — indirectly). The restore plan faithfully requests the correct packages, but the repository may serve compromised versions. |
 | **SA-9** | The cryptographic primitives are correctly implemented. | The architecture specifies AES-256, SHA-256, Argon2, and GPG. Correctness depends on the implementation using vetted, well-maintained libraries. | I-01, I-03, T-01. Cryptographic failure exposes all protected data. |
 | **SA-10** | Logs are written to storage accessible only to the owning user. | Logs contain operational metadata (basenames, timestamps, operation types) that could aid an attacker in planning further attacks. | I-04 (log leakage). Operational metadata exposure enables more targeted attacks. |
@@ -433,7 +443,7 @@ The following assumptions underpin the security model. If any assumption is viol
 
 ## 9. Security Principles
 
-The following security principles are enforced throughout the AERS architecture. Each principle is mapped to its architectural enforcement mechanism and the threats it mitigates.
+The following security principles are enforced throughout the Telos architecture. Each principle is mapped to its architectural enforcement mechanism and the threats it mitigates.
 
 ### 9.1 Least Privilege
 
@@ -542,7 +552,7 @@ This section maps the major threats identified in the analysis back to the Requi
 ### 10.1 Threat-to-Requirement Mapping
 
 | Threat | Requirements | Architecture |
-|--------|-------------|--------------|
+| -------- | ------------- | -------------- |
 | **S-01: Spoofed plugin** | FR-12.2 (interface version enforcement), FR-12.5 (defined interfaces only), FR-12.6 (plugin failure isolation), NFR-1.11 (plugin sandboxing) | S12 (Plugin Host — trust model, validation, dispatch), Security Perimeter (Constraint #3 — sandboxed interface) |
 | **S-02: Spoofed archive** | NFR-1.2 (integrity manifest), NFR-1.3 (verification before restore), NFR-1.9 (optional signing), FR-5.1 (verify before restore plan) | S9 (Crypto Engine — verification chain), S10 (Restore Engine — plan-only execution) |
 | **S-03: Spoofed configuration** | FR-11.3 (schema validation), FR-11.4 (halt on invalid config) | S17 (Configuration Manager — validation, priority hierarchy) |
@@ -560,7 +570,7 @@ This section maps the major threats identified in the analysis back to the Requi
 ### 10.2 Security Objective to Requirement Mapping
 
 | Security Objective | Primary Requirements | Primary Architecture |
-|-------------------|---------------------|---------------------|
+| ------------------- | --------------------- | --------------------- |
 | **Confidentiality** | NFR-1.1, NFR-1.4, NFR-1.5, NFR-1.7, NFR-1.8, FR-13.7 | S9 (Crypto Engine), Architectural Constraints #2, #8 |
 | **Integrity** | NFR-1.2, NFR-1.3, NFR-1.9, FR-4.2, FR-5.1 | S9 (Crypto Engine — verification chain) |
 | **Authenticity** | NFR-1.9, FR-12.2 | S9 (Crypto Engine — signing), S12 (Plugin Host — signature verification) |
@@ -576,7 +586,7 @@ This section maps the major threats identified in the analysis back to the Requi
 The following security improvements are intentionally deferred beyond Version 1. They represent recognized enhancements that would strengthen the security posture but are not required for the initial release to meet its security objectives. Each is listed with the threats it would further mitigate.
 
 | ID | Improvement | Description | Threats Mitigated |
-|----|------------|-------------|-------------------|
+| ---- | ------------ | ------------- | ------------------- |
 | **FSI-1** | **Hardware-backed key storage** | Store derived encryption keys in hardware security modules (HSM), TPM, or platform keystores (macOS Keychain, Windows DPAPI). Prevents memory disclosure attacks. | I-03 (memory disclosure), AS-8 (secrets handling). |
 | **FSI-2** | **Passphrase strength enforcement** | Implement passphrase complexity validation, entropy estimation, and guidance for the master passphrase. Optionally support passphrase-less operation via hardware tokens. | I-01 (credential exposure from stolen archive). Eliminates the weakest link in the confidentiality chain. |
 | **FSI-3** | **Cryptographic log chaining** | Hash-chain audit log entries so that any deletion or modification is cryptographically detectable. Each log entry includes the hash of the previous entry. | T-03 (tampered audit logs), R-01 (denied approval). |
@@ -592,4 +602,4 @@ The following security improvements are intentionally deferred beyond Version 1.
 
 ---
 
-> **This document defines the security threat landscape for AERS.** Every implementation decision that touches security should be traceable to the threats, mitigations, and principles documented here. If a future implementation introduces a new attack surface or modifies an existing trust boundary, this threat model must be updated to reflect the change. Security is not a feature — it is the foundation.
+> **This document defines the security threat landscape for Telos.** Every implementation decision that touches security should be traceable to the threats, mitigations, and principles documented here. If a future implementation introduces a new attack surface or modifies an existing trust boundary, this threat model must be updated to reflect the change. Security is not a feature — it is the foundation.

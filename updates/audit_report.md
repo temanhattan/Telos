@@ -1,4 +1,4 @@
-# AERS — Autonomous Codebase Audit Report
+# Telos (formerly AERS) — Autonomous Codebase Audit Report
 
 > **Auditor:** Principal Software Architect / Lead Technical Auditor (AI)
 > **Date:** 2026-08-20

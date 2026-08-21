@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	log "AERS/internal/logger"
-	"AERS/internal/model"
+	log "telos/internal/logger"
+	"telos/internal/model"
 
 	"gopkg.in/yaml.v3"
 )

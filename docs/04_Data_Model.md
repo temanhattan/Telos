@@ -1,4 +1,4 @@
-# AERS — Data Model
+# Telos — Data Model
 
 > **Status:** Draft
 > **Last Updated:** 2026-07-01
@@ -44,7 +44,7 @@
 
 ## 1. Purpose
 
-The Data Model defines the canonical domain vocabulary of AERS. It specifies every conceptual entity the system creates, manages, or references — their purpose, responsibilities, relationships, lifecycles, and ownership.
+The Data Model defines the canonical domain vocabulary of Telos. It specifies every conceptual entity the system creates, manages, or references — their purpose, responsibilities, relationships, lifecycles, and ownership.
 
 This document serves three roles:
 
@@ -82,7 +82,7 @@ Every entity has exactly one owning subsystem. The owning subsystem is the only 
 
 ### 2.5 Versioned Entities
 
-Entities that evolve over time carry an explicit version identifier. When the schema of an entity changes, its version is incremented. Consumers of versioned entities must validate the version before processing and reject entities with incompatible versions. This enables forward and backward compatibility across AERS releases.
+Entities that evolve over time carry an explicit version identifier. When the schema of an entity changes, its version is incremented. Consumers of versioned entities must validate the version before processing and reject entities with incompatible versions. This enables forward and backward compatibility across Telos releases.
 
 ### 2.6 Auditability
 
@@ -122,7 +122,7 @@ The Machine Profile represents the identity and hardware characteristics of a sp
 
 **Lifecycle**
 
-- Created during the discovery phase when AERS first encounters a machine.
+- Created during the discovery phase when Telos first encounters a machine.
 - Updated if hardware characteristics change between backup sessions (e.g., RAM upgrade, new network interface).
 - Never deleted — historical profiles are retained for traceability.
 
@@ -144,13 +144,13 @@ The Machine Profile represents the identity and hardware characteristics of a sp
 
 **Purpose**
 
-The Environment Manifest is the canonical, machine-readable description of a discovered computing environment. It is the single most important entity in the AERS data model — the foundation upon which classification, planning, capture, storage, restore, and verification all depend.
+The Environment Manifest is the canonical, machine-readable description of a discovered computing environment. It is the single most important entity in the Telos data model — the foundation upon which classification, planning, capture, storage, restore, and verification all depend.
 
 **Responsibilities**
 
 - Store the complete results of a discovery scan, organized by category: platform, packages, services, user configuration, credentials, environment variables, scheduled tasks, network, cloud metadata, and user data.
 - Support annotations added by the Classifier (S5) and AI Advisory Layer (S13) without altering the underlying discovery facts.
-- Provide a versioned schema to enable forward and backward compatibility across AERS releases.
+- Provide a versioned schema to enable forward and backward compatibility across Telos releases.
 - Serve as input to the Planner, Diff Engine, and Verification Engine.
 
 **Relationships**
@@ -185,7 +185,7 @@ The Environment Manifest is the canonical, machine-readable description of a dis
 - Schema version.
 - Creation timestamp.
 - Source hostname.
-- AERS version that produced the manifest.
+- Telos version that produced the manifest.
 - Discovery duration.
 - Machine Profile reference.
 - Completeness status (which discovery categories succeeded vs. failed).
@@ -281,7 +281,7 @@ The Archive is the encrypted, integrity-verified, self-contained package that ho
 - Source hostname.
 - Source Machine Profile reference.
 - Source Environment Manifest schema version.
-- AERS version that produced the archive.
+- Telos version that produced the archive.
 - Archive size (encrypted).
 - Encryption algorithm identifier.
 - Digital signature (if signed).
@@ -428,7 +428,7 @@ The Execution Plan is the general term for any plan that must pass through the A
 
 **Purpose**
 
-A Plugin is an executable extension module that provides platform-specific functionality without modifying the AERS core. Plugins are the mechanism by which AERS supports new operating systems, package managers, cloud providers, storage backends, and classification rules.
+A Plugin is an executable extension module that provides platform-specific functionality without modifying the Telos core. Plugins are the mechanism by which Telos supports new operating systems, package managers, cloud providers, storage backends, and classification rules.
 
 **Responsibilities**
 
@@ -455,7 +455,7 @@ A Plugin is an executable extension module that provides platform-specific funct
 - Registered in the Plugin Host's capability registry.
 - Dispatched to serve requests during pipeline execution.
 - Terminated after request completion or on timeout/failure.
-- Re-validated on AERS restart.
+- Re-validated on Telos restart.
 
 **Ownership**
 
@@ -618,7 +618,7 @@ The Verification Report is the structured comparison of a restored environment a
 
 **Purpose**
 
-The Machine Fingerprint is a stable identity marker for a specific physical or virtual machine. It enables AERS to determine whether the current machine is the same machine that produced a previous backup, even if the hostname has changed.
+The Machine Fingerprint is a stable identity marker for a specific physical or virtual machine. It enables Telos to determine whether the current machine is the same machine that produced a previous backup, even if the hostname has changed.
 
 **Responsibilities**
 
@@ -697,7 +697,7 @@ A Storage Location represents a configured destination where Archives are stored
 
 **Purpose**
 
-The Configuration Profile represents the merged, validated configuration that governs AERS behavior on a given machine. It is the output of the Configuration Manager's merge-and-validate process, incorporating all configuration sources in priority order.
+The Configuration Profile represents the merged, validated configuration that governs Telos behavior on a given machine. It is the output of the Configuration Manager's merge-and-validate process, incorporating all configuration sources in priority order.
 
 **Responsibilities**
 
@@ -716,9 +716,9 @@ The Configuration Profile represents the merged, validated configuration that go
 
 **Lifecycle**
 
-- Created at AERS startup by the Configuration Manager.
+- Created at Telos startup by the Configuration Manager.
 - Read-only during the lifetime of the process — the Configuration Manager does not write configuration files.
-- Rebuilt from sources on each AERS invocation.
+- Rebuilt from sources on each Telos invocation.
 
 **Ownership**
 
@@ -738,7 +738,7 @@ The Configuration Profile represents the merged, validated configuration that go
 
 **Purpose**
 
-A Credential Reference is a pointer to a sensitive credential material detected on the source machine. During discovery, AERS detects the location and type of credentials but does not read their contents. The Credential Reference records what was found and where, enabling the Backup Plan to flag these items for credential isolation during capture.
+A Credential Reference is a pointer to a sensitive credential material detected on the source machine. During discovery, Telos detects the location and type of credentials but does not read their contents. The Credential Reference records what was found and where, enabling the Backup Plan to flag these items for credential isolation during capture.
 
 **Responsibilities**
 
@@ -1022,7 +1022,7 @@ flowchart TD
 
 ### Primary Relationship Chain
 
-The backbone of the AERS data model follows the core pipeline:
+The backbone of the Telos data model follows the core pipeline:
 
 ```
 Machine Profile
@@ -1078,7 +1078,7 @@ Verification Report
 | Verification Report | Post-restore verification | Immutable after creation | Archived for audit | Never deleted — audit record |
 | Machine Fingerprint | First discovery | Recomputed on subsequent discovery | Never archived — always active | Never deleted |
 | Storage Location | User configuration | Updatable via configuration change | Deactivated on config removal | User removes from config |
-| Configuration Profile | AERS startup | Rebuilt on each invocation | Not persisted — transient | Rebuilt next invocation |
+| Configuration Profile | Telos startup | Rebuilt on each invocation | Not persisted — transient | Rebuilt next invocation |
 | Credential Reference | Discovery phase | Immutable (part of manifest) | Stored within Environment Manifest | Deleted with manifest |
 | Discovery Result | Plugin response | Immutable | Incorporated into manifest | Discarded after aggregation |
 | Classification Result | Classification phase | Frozen at manifest seal | Stored as manifest annotations | Deleted with manifest |
@@ -1207,12 +1207,12 @@ This section defines which entities are persisted to durable storage and which e
 | Backup Manifest | Inside encrypted Archive | Encrypted with Archive | Governed by Archive retention |
 | Backup Plan | Inside encrypted Archive | Encrypted with Archive | Governed by Archive retention |
 | Captured Artifacts | Inside encrypted Archive | Encrypted with Archive (general or credential-isolated segment) | Governed by Archive retention |
-| Machine Profile | Local AERS data directory | Encrypted at rest | Permanent |
+| Machine Profile | Local Telos data directory | Encrypted at rest | Permanent |
 | Audit Logs (including User Approvals) | Local append-only log storage | Not encrypted (no sensitive data) | Governed by log rotation policy |
-| Restore Result | Local AERS data directory / audit logs | Not encrypted (no sensitive data) | Permanent (audit record) |
-| Verification Report | Local AERS data directory / audit logs | Not encrypted (no sensitive data) | Permanent (audit record) |
-| Restore Checkpoints | Local AERS data directory | Not encrypted (operational state) | Deleted after successful restore completion |
-| User Configuration | User config file (`~/.aers/config.yaml` or equivalent) | Not encrypted by AERS | User-managed |
+| Restore Result | Local Telos data directory / audit logs | Not encrypted (no sensitive data) | Permanent (audit record) |
+| Verification Report | Local Telos data directory / audit logs | Not encrypted (no sensitive data) | Permanent (audit record) |
+| Restore Checkpoints | Local Telos data directory | Not encrypted (operational state) | Deleted after successful restore completion |
+| User Configuration | User config file (`~/.telos/config.yaml` or equivalent) | Not encrypted by Telos | User-managed |
 
 ### 8.2 Transient Entities
 
@@ -1254,7 +1254,7 @@ Entities with a structured schema carry a schema version. Schema versions use a 
 
 ### 9.3 Backward Compatibility Rules
 
-1. **Archives must be restorable by future AERS versions.** A newer version of AERS must be able to read and restore an Archive produced by an older version. This requires that the Environment Manifest, Backup Manifest, and Backup Plan schemas support backward-compatible reading.
+1. **Archives must be restorable by future Telos versions.** A newer version of Telos must be able to read and restore an Archive produced by an older version. This requires that the Environment Manifest, Backup Manifest, and Backup Plan schemas support backward-compatible reading.
 
 2. **Plugins must declare their target interface version.** The Plugin Host refuses to load plugins targeting a major version it does not support. Minor version mismatches are tolerated — a plugin targeting interface version 1.0 may be loaded by a Plugin Host that implements 1.3, but not by one that implements 2.0.
 
@@ -1265,7 +1265,7 @@ Entities with a structured schema carry a schema version. Schema versions use a 
 When a schema version increments, the following rules apply:
 
 - **Minor version:** No migration required. Consumers ignore fields they do not recognize.
-- **Major version:** AERS must include a migration path — either an automatic converter that transforms old-version entities to the new version, or clear documentation that old-version entities must be re-created. Archives from previous major versions must remain readable through a compatibility layer.
+- **Major version:** Telos must include a migration path — either an automatic converter that transforms old-version entities to the new version, or clear documentation that old-version entities must be re-created. Archives from previous major versions must remain readable through a compatibility layer.
 
 ---
 
@@ -1334,10 +1334,10 @@ Entities that are identified as security assets in the [Threat Model](03_Threat_
 | Credential Reference / Captured Artifact (credential segment) | Credential materials (§3.1) | Highest | I-01, E-04 |
 | Backup Plan / Restore Plan | Backup and Restore Plans (§3.2) | High | T-02, S-02 |
 | Plugin / Plugin Manifest | Plugin packages (§3.3) | Medium | S-01, T-05, E-01 |
-| Configuration Profile | AERS configuration files (§3.3) | Medium | S-03, E-03 |
+| Configuration Profile | Telos configuration files (§3.3) | Medium | S-03, E-03 |
 | Restore Result / User Approval (in audit logs) | Audit logs (§3.3) | Medium | T-03, R-01 |
 | Verification Report | Verification reports (§3.3) | Medium | T-01 (indirectly) |
 
 ---
 
-> **This document defines the canonical domain vocabulary of AERS.** Every entity, relationship, lifecycle, and identity strategy described here is an architectural constraint that implementation must respect. If a future design decision introduces new entities, modifies relationships, or changes ownership, this document must be updated through a formal review. The data model is the skeleton of the system — it shapes everything that is built upon it.
+> **This document defines the canonical domain vocabulary of Telos.** Every entity, relationship, lifecycle, and identity strategy described here is an architectural constraint that implementation must respect. If a future design decision introduces new entities, modifies relationships, or changes ownership, this document must be updated through a formal review. The data model is the skeleton of the system — it shapes everything that is built upon it.

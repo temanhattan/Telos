@@ -1,31 +1,33 @@
-# AERS — Project Context
+# Telos — Project Context
 
 > **Purpose:** Internal onboarding document for AI agents and new contributors
 > **Status:** Active
 > **Last Updated:** 2026-07-01
-> **Audience:** AI sessions, developers, and code reviewers working on AERS
+> **Audience:** AI sessions, developers, and code reviewers working on Telos
 > **Canonical Sources:** [00_Vision.md](00_Vision.md), [01_Requirements.md](01_Requirements.md), [02_Architecture.md](02_Architecture.md), [03_Threat_Model.md](03_Threat_Model.md), [04_Data_Model.md](04_Data_Model.md), [05_Plugin_API.md](05_Plugin_API.md)
 
 ---
 
-## 1. Project Summary
+## 1. Project Summary & Concept
 
-AERS — the **Adaptive Environment Recovery System** — is an intelligent, offline-first, plugin-based system for discovering, understanding, and deterministically reconstructing computing environments. Unlike traditional backup tools that copy files blindly, AERS comprehends an environment before it captures anything: it discovers the operating system, catalogs installed packages, identifies running services, maps user configurations, detects credential material, and constructs an intent-aware backup plan.
+**Telos** (Ancient Greek: *τέλος* — intrinsic purpose, end goal, and operational intent) is an intelligent, offline-first, plugin-based system for discovering, understanding, and deterministically reconstructing computing environments.
 
-The core value proposition is **deterministic environment reconstruction**: given a compatible target machine and an AERS backup, the user recreates a functionally identical environment with confidence, speed, and security.
+Unlike traditional backup tools that copy files blindly, Telos comprehends an environment before it captures anything: it discovers the operating system, catalogs installed packages, identifies running services, maps user configurations, detects credential material, and constructs an intent-aware backup plan.
 
-AERS is designed for a single technically sophisticated user who manages a diverse fleet of personal machines across multiple operating systems, virtual machines, and cloud providers.
+The core value proposition is **deterministic environment reconstruction**: given a compatible target machine and a Telos blueprint, the user recreates a functionally identical environment with confidence, speed, and security.
+
+Telos is designed for a single technically sophisticated user who manages a diverse fleet of personal machines across multiple operating systems, virtual machines, and cloud providers.
 
 ---
 
 ## 2. Architecture at a Glance
 
-AERS is a **pipeline-oriented, plugin-extended, CLI-driven** system with 17 named subsystems.
+Telos is a **pipeline-oriented, plugin-extended, CLI-driven** system with 17 named subsystems.
 
 ### Subsystem Map
 
 | ID | Name | Layer | Role |
-|----|------|-------|------|
+| ---- | ------ | ------- | ------ |
 | S1 | CLI Shell | Surface | User-facing interface; owns the Approval Gate |
 | S2 | Orchestrator | Core | Pipeline coordinator; lifecycle owner for all operations |
 | S3 | Discovery Engine | Core | Dispatches discovery requests to plugins; aggregates results into a manifest |
@@ -73,7 +75,7 @@ Stages in order: **Archive Retrieval → Decryption → Integrity Verification �
 ### Restore Execution Phases (Canonical Order)
 
 | Phase | Actions |
-|-------|---------|
+| ------- | --------- |
 | 1. Package Installation | Install packages via OS package managers |
 | 2. Configuration Application | Write configuration files, dot files, shell configs |
 | 3. Credential Restoration | Restore SSH keys, GPG keys, API tokens (separate decryption) |
@@ -84,7 +86,7 @@ Stages in order: **Archive Retrieval → Decryption → Integrity Verification �
 ### Other Pipelines
 
 | Pipeline | Stages |
-|----------|--------|
+| ---------- | -------- |
 | **Verify** | Discovery (current) → Manifest Loading (baseline) → Diff → Report |
 | **Diff** | Manifest Loading (A) → Manifest Loading (B) → Diff → Report |
 | **Discover** | Discovery → Classification → Report |
@@ -96,7 +98,7 @@ Stages in order: **Archive Retrieval → Decryption → Integrity Verification �
 ### Primary Entities
 
 | Entity | Purpose | Defined In |
-|--------|---------|------------|
+| -------- | --------- | ------------ |
 | **Machine Profile** | Hardware and OS identity of the source machine | 04_Data_Model §3.1 |
 | **Environment Manifest** | Complete structured description of a discovered environment; the single source of truth | 04_Data_Model §3.2 |
 | **Backup Plan** | What to capture, how, and why — user-reviewable before execution | 04_Data_Model §3.3 |
@@ -117,7 +119,7 @@ The Environment Manifest has 10 content sections, each mirroring a discovery cat
 
 `platform` · `packages` · `services` · `user_config` · `credentials` · `environment` · `scheduled_tasks` · `network` · `cloud_metadata` · `user_data`
 
-Plus a `metadata` header with: `schema_version`, `created_at`, `source_hostname`, `aers_version`, `discovery_duration`.
+Plus a `metadata` header with: `schema_version`, `created_at`, `source_hostname`, `telos_version`, `discovery_duration`.
 
 ---
 
@@ -135,7 +137,7 @@ Plus a `metadata` header with: `schema_version`, `created_at`, `source_hostname`
 ### Plugin Types
 
 | Type | Consumed By | Dispatch Rule |
-|------|------------|---------------|
+| ------ | ------------ | --------------- |
 | **Discovery** | S3 (Discovery Engine) | All matching plugins invoked; results aggregated |
 | **ClassificationRule** | S5 (Classifier) | All matching plugins invoked per entry; annotations merged |
 | **Capture** | S7 (Capture Engine) | Single best-match plugin by specificity |
@@ -172,7 +174,7 @@ The Plugin Host executes plugins as isolated subprocesses. Communication uses a 
 ### Encryption Architecture
 
 | Layer | Algorithm | Purpose |
-|-------|-----------|---------|
+| ------- | ----------- | --------- |
 | Artifact hashing | SHA-256 | Per-artifact integrity before encryption |
 | Archive encryption | AES-256 | Entire archive encrypted before storage |
 | Credential segment | AES-256 (separate derived key) | Double-encryption for sensitive materials |
@@ -198,7 +200,7 @@ Plaintext backup data **never** crosses the trust boundary. The Crypto Engine is
 Defined in [03_Threat_Model.md](03_Threat_Model.md). Key threat categories:
 
 | Category | Examples |
-|----------|----------|
+| ---------- | ---------- |
 | **Storage compromise** | Unauthorized read/modification of backup archives on disk, USB, or cloud |
 | **Plugin threats** | Malicious/compromised plugins attempting data exfiltration, privilege escalation, or path traversal |
 | **Credential exposure** | Credential material leaked via logs, error messages, or co-mingling with general data |
@@ -263,14 +265,14 @@ AI is the **lowest-priority input** in every decision chain.
 ### Operational Modes
 
 | Mode | Network | Behavior |
-|------|---------|----------|
+| ------ | --------- | ---------- |
 | **Disabled** | None | AI layer not loaded; deterministic-only codepaths |
 | **Local** | None | On-device inference |
 | **Cloud** (opt-in) | Required | API calls with anonymized metadata only |
 
 ### Non-Negotiable: The system works without AI
 
-If all AI components are removed, AERS must remain a fully capable backup and restore tool.
+If all AI components are removed, Telos must remain a fully capable backup and restore tool.
 
 ---
 
@@ -294,7 +296,7 @@ If all AI components are removed, AERS must remain a fully capable backup and re
 ### Excluded from Version 1
 
 | Capability | Status |
-|-----------|--------|
+| ----------- | -------- |
 | Differential/incremental backups | Future version |
 | Cross-platform restoration | Future version |
 | Graphical user interface | Future version |
@@ -340,9 +342,9 @@ Every implementation decision must be traceable to the foundational documents. B
 Priority (highest to lowest):
 
 1. CLI flags (per-invocation)
-2. Environment variables (session-level)
-3. User config file (`~/.aers/config.yaml`)
-4. System config file (`/etc/aers/config.yaml`)
+2. Environment variables (`TELOS_*`, session-level)
+3. User config file (`~/.telos/config.yaml`)
+4. System config file (`/etc/telos/config.yaml`)
 5. Built-in defaults
 
 ### Logging Rules
@@ -357,7 +359,7 @@ Priority (highest to lowest):
 ## 12. What Not To Do
 
 | Don't | Why | Reference |
-|-------|-----|-----------|
+| ------- | ----- | ----------- |
 | Put OS logic in core | Violates the plugin architecture constraint | Architecture §Architectural Constraints #1 |
 | Store plaintext backups anywhere | Violates Zero Trust security model | Architecture §Architectural Constraints #2, Threat Model |
 | Skip the Approval Gate | Violates human authority principle | Architecture §Architectural Constraints #3, Vision §Guiding Principles #1 |
@@ -376,14 +378,14 @@ Priority (highest to lowest):
 ## 13. Document Map
 
 | Document | What It Defines | Read When |
-|----------|----------------|-----------|
-| [00_Vision.md](00_Vision.md) | Project purpose, design philosophy, guiding principles, AI philosophy, scope, non-goals | Understanding why a design decision exists |
+| ---------- | ---------------- | ----------- |
+| [00_Vision.md](00_Vision.md) | Project purpose, concept & symbolism (*Telos*), design philosophy, guiding principles, AI philosophy, scope, non-goals | Understanding why a design decision exists |
 | [01_Requirements.md](01_Requirements.md) | Functional requirements (FR-1 through FR-14), non-functional requirements (NFR-1 through NFR-8), data requirements, external interface requirements, V1 scope | Verifying what the system must accomplish |
 | [02_Architecture.md](02_Architecture.md) | 17 subsystem definitions, dependency graph, pipeline definitions, data flows, plugin boundary contract, security perimeter, failure model, architectural constraints | Understanding how the system is structured |
 | [03_Threat_Model.md](03_Threat_Model.md) | Threat landscape, STRIDE analysis, trust boundaries, attack vectors, mitigations | Implementing security-sensitive features |
 | [04_Data_Model.md](04_Data_Model.md) | Entity definitions, field schemas, relationships, lifecycle rules, serialization formats, validation rules | Working with data structures and schemas |
 | [05_Plugin_API.md](05_Plugin_API.md) | Plugin types, identity model, lifecycle, execution model, sandbox/permissions, request/response contracts, dispatch rules, shared types, error handling | Building or modifying plugins |
-| **06_PROJECT_CONTEXT.md** (this file) | Synthesized onboarding reference; does not replace any source document | Starting work on AERS for the first time |
+| **08_PROJECT_CONTEXT.md** (this file) | Synthesized onboarding reference; does not replace any source document | Starting work on Telos for the first time |
 
 ---
 
