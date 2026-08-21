@@ -1,4 +1,4 @@
-# Telos — Intent-Driven Environment Recovery & Reconstruction
+# Telos 'Intent-Driven Environment Recovery & Reconstruction'
 
 ## Overview
 
