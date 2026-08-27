@@ -1,4 +1,4 @@
-// Package plugin implements the Plugin Host (S12).
+﻿// Package plugin implements the Plugin Host (S12).
 package plugin
 
 import (
@@ -18,6 +18,7 @@ import (
 
 	log "telos/internal/logger"
 	"telos/internal/model"
+	"telos/internal/plugin/sandbox"
 
 	"gopkg.in/yaml.v3"
 )
@@ -35,6 +36,9 @@ type Options struct {
 	Timeout     time.Duration
 	OutputLimit int64
 	Logger      log.Logger
+	// Sandbox provides OS-level plugin isolation when set. If nil, plugins
+	// run without sandbox enforcement (direct subprocess execution).
+	Sandbox sandbox.Sandbox
 }
 
 // Plugin is a validated, registered plugin and its package location.
@@ -248,4 +252,45 @@ func (w *limitedWriter) Write(p []byte) (int, error) {
 	n, e := w.w.Write(p)
 	w.written += int64(n)
 	return n, e
+}
+
+// InvokeSandboxed runs a plugin through the sandbox if configured, falling
+// back to direct invocation otherwise. This is the preferred entry point
+// for production plugin execution.
+func (h *Host) InvokeSandboxed(ctx context.Context, id string, request any) (json.RawMessage, error) {
+	if h.opts.Sandbox == nil {
+		return h.Invoke(ctx, id, request)
+	}
+	p, ok := h.plugins[id]
+	if !ok {
+		return nil, fmt.Errorf("plugin %q is not registered", id)
+	}
+	input, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("encode request: %w", err)
+	}
+
+	policy := h.buildPolicy(p)
+	result, err := h.opts.Sandbox.Exec(ctx, p.Executable, p.Dir,
+		append(input, '\n'), policy)
+	if err != nil {
+		return nil, fmt.Errorf("plugin %q sandbox exec: %w", id, err)
+	}
+	var response json.RawMessage
+	if err := json.Unmarshal(result.Stdout, &response); err != nil {
+		return nil, fmt.Errorf("plugin %q returned malformed JSON: %w", id, err)
+	}
+	return response, nil
+}
+
+// buildPolicy translates a plugin's manifest permissions into a sandbox Policy.
+func (h *Host) buildPolicy(p Plugin) sandbox.Policy {
+	return sandbox.Policy{
+		ReadPaths:   p.Manifest.FilesystemRead,
+		WritePaths:  p.Manifest.FilesystemWrite,
+		Executables: []string{p.Executable},
+		Network:     p.Manifest.NetworkAllowed,
+		TimeoutSec:  int(h.opts.Timeout.Seconds()),
+		OutputLimit: h.opts.OutputLimit,
+	}
 }
