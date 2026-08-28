@@ -47,14 +47,14 @@ func TestLinuxSandboxIntegration(t *testing.T) {
 	}
 
 	// Set up allowed and denied test files for Landlock verification.
-	if err := os.WriteFile("/tmp/allowed", []byte("ok"), 0644); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile("/tmp/allowed", []byte("ok"), 0644); writeErr != nil {
+		t.Fatal(writeErr)
 	}
-	if err := os.WriteFile("/tmp/denied", []byte("secret"), 0644); err != nil {
-		t.Fatal(err)
+	if writeErr := os.WriteFile("/tmp/denied", []byte("secret"), 0644); writeErr != nil {
+		t.Fatal(writeErr)
 	}
-	defer os.Remove("/tmp/allowed")
-	defer os.Remove("/tmp/denied")
+	defer func() { _ = os.Remove("/tmp/allowed") }()
+	defer func() { _ = os.Remove("/tmp/denied") }()
 
 	pol := &sandbox.Policy{
 		Executables: []string{pluginExe},

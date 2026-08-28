@@ -65,7 +65,15 @@ func NormalizeManifestPaths(baseDir string, declared []string) ([]string, error)
 // IsSubpath reports whether child is a sub-path of parent after cleaning.
 // Both paths must be absolute.
 func IsSubpath(parent, child string) bool {
-	parent = filepath.Clean(parent) + string(filepath.Separator)
-	child = filepath.Clean(child) + string(filepath.Separator)
-	return strings.HasPrefix(child, parent)
+	parent = filepath.Clean(parent)
+	child = filepath.Clean(child)
+
+	rel, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return false
+	}
+	return true
 }

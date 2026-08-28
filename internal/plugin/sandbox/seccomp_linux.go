@@ -104,12 +104,12 @@ func buildSeccompFilter() []bpfInsn {
 	clone3CheckIdx := len(prog)
 	prog = append(prog, bpfInsn{Code: bpfJMP | bpfJEQ | bpfK, K: 435, Jt: 0, Jf: 0})
 
-	// Check clone.
+	// Check clone and Default allow.
 	cloneCheckStart := len(prog)
-	prog = append(prog, bpfInsn{Code: bpfJMP | bpfJEQ | bpfK, K: unix.SYS_CLONE, Jt: 0, Jf: 0})
-
-	// Default allow.
-	prog = append(prog, bpfInsn{Code: bpfRET | bpfK, K: seccompRetAllow})
+	prog = append(prog,
+		bpfInsn{Code: bpfJMP | bpfJEQ | bpfK, K: unix.SYS_CLONE, Jt: 0, Jf: 0},
+		bpfInsn{Code: bpfRET | bpfK, K: seccompRetAllow},
+	)
 
 	// Clone flag check: load args[0], AND with CLONE_NEW* mask.
 	flagCheckStart := len(prog)
@@ -121,10 +121,10 @@ func buildSeccompFilter() []bpfInsn {
 
 	// EPERM return (for denied syscalls and clone flags).
 	denyEPERMIdx := len(prog)
-	prog = append(prog, bpfInsn{Code: bpfRET | bpfK, K: errnoEPERM})
-
-	// Allow return (for clone without namespace flags).
-	prog = append(prog, bpfInsn{Code: bpfRET | bpfK, K: seccompRetAllow})
+	prog = append(prog,
+		bpfInsn{Code: bpfRET | bpfK, K: errnoEPERM},
+		bpfInsn{Code: bpfRET | bpfK, K: seccompRetAllow},
+	)
 
 	// ENOSYS return (for clone3).
 	denyENOSYSIdx := len(prog)
@@ -135,15 +135,24 @@ func buildSeccompFilter() []bpfInsn {
 	firstDenyIdx := 4
 	for i := firstDenyIdx; i < clone3CheckIdx; i++ {
 		jt := denyEPERMIdx - i - 1
+		if jt < 0 || jt > 255 {
+			panic("seccomp jump target out of bounds")
+		}
 		prog[i].Jt = uint8(jt)
 	}
 
 	// 2. clone3 jumps to denyENOSYSIdx if true.
 	jtClone3 := denyENOSYSIdx - clone3CheckIdx - 1
+	if jtClone3 < 0 || jtClone3 > 255 {
+		panic("seccomp jump target out of bounds")
+	}
 	prog[clone3CheckIdx].Jt = uint8(jtClone3)
 
 	// 3. clone jumps to flagCheckStart if true.
 	jtClone := flagCheckStart - cloneCheckStart - 1
+	if jtClone < 0 || jtClone > 255 {
+		panic("seccomp jump target out of bounds")
+	}
 	prog[cloneCheckStart].Jt = uint8(jtClone)
 
 	return prog
