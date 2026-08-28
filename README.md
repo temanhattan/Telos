@@ -1,6 +1,4 @@
-# Telos Intent-Driven Environment Recovery & Reconstruction
-
-## Overview
+# Telos
 
 **Telos** is an intelligent, security-first platform designed to discover, securely capture, and deterministically reconstruct computing environments.
 
