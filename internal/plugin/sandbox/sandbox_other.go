@@ -1,6 +1,6 @@
-﻿//go:build !linux
+//go:build !linux
 
-// Non-Linux fallback sandbox — application-level enforcement only.
+// Package sandbox provides the non-Linux fallback sandbox — application-level enforcement only.
 // This provides degraded security with explicit audit-severity warnings.
 // No OS-level isolation is available on this platform.
 package sandbox
@@ -36,19 +36,13 @@ func NewFallbackSandbox(logger log.Logger) Sandbox {
 // Exec runs the plugin with application-level enforcement (timeout, output limits,
 // path validation). No OS-level isolation is applied.
 func (s *fallbackSandbox) Exec(ctx context.Context, executable string, dir string,
-	stdin []byte, policy Policy) (Result, error) {
+	stdin []byte, policy *Policy) (Result, error) {
 
 	if err := policy.Validate(); err != nil {
 		return Result{}, fmt.Errorf("sandbox: invalid policy: %w", err)
 	}
 
-	// Application-level path validation.
-	if err := ValidatePaths(policy.ReadPaths); err != nil {
-		return Result{}, fmt.Errorf("sandbox: read path validation: %w", err)
-	}
-	if err := ValidatePaths(policy.WritePaths); err != nil {
-		return Result{}, fmt.Errorf("sandbox: write path validation: %w", err)
-	}
+	// Application-level path validation is handled by Policy.Validate().
 
 	// Log degraded enforcement.
 	if s.logger != nil {

@@ -24,25 +24,42 @@ func NormalizePath(path string) (string, error) {
 	return filepath.Clean(resolved), nil
 }
 
-// ValidatePaths ensures all declared paths are absolute, exist, and contain
-// no traversal components after normalization.
-func ValidatePaths(declared []string) error {
+// NormalizeManifestPaths canonicalizes paths declared in the manifest.
+// Absolute paths are lexically cleaned and preserved as explicit host filesystem authorizations.
+// Relative paths are evaluated against baseDir, symlinks are resolved, and the resulting target
+// must remain inside baseDir to prevent traversal or static symlink escapes.
+func NormalizeManifestPaths(baseDir string, declared []string) ([]string, error) {
+	var result []string
+	baseDir = filepath.Clean(baseDir)
 	for _, p := range declared {
 		if p == "" {
-			return errors.New("sandbox: empty path in declaration")
+			return nil, errors.New("sandbox: empty path in declaration")
 		}
-		if !filepath.IsAbs(p) {
-			return fmt.Errorf("sandbox: relative path %q not allowed", p)
-		}
-		cleaned := filepath.Clean(p)
-		if strings.Contains(cleaned, "..") {
-			return fmt.Errorf("sandbox: traversal in cleaned path %q", cleaned)
-		}
-		if _, err := os.Stat(p); err != nil {
-			return fmt.Errorf("sandbox: path %q: %w", p, err)
+		if filepath.IsAbs(p) {
+			// Explicit absolute paths are host authorizations. Just normalize them.
+			cleaned := filepath.Clean(p)
+			if strings.Contains(cleaned, "..") {
+				return nil, fmt.Errorf("sandbox: traversal in absolute path %q", cleaned)
+			}
+			if _, err := os.Stat(cleaned); err != nil {
+				return nil, fmt.Errorf("sandbox: stat absolute path %q: %w", p, err)
+			}
+			result = append(result, cleaned)
+		} else {
+			// Relative paths are plugin-internal. Resolve symlinks and verify they stay within baseDir.
+			fullPath := filepath.Join(baseDir, filepath.Clean(p))
+			resolved, err := filepath.EvalSymlinks(fullPath)
+			if err != nil {
+				return nil, fmt.Errorf("sandbox: resolve %q: %w", p, err)
+			}
+			resolved = filepath.Clean(resolved)
+			if !IsSubpath(baseDir, resolved) {
+				return nil, fmt.Errorf("sandbox: relative path %q escapes plugin root", p)
+			}
+			result = append(result, resolved)
 		}
 	}
-	return nil
+	return result, nil
 }
 
 // IsSubpath reports whether child is a sub-path of parent after cleaning.

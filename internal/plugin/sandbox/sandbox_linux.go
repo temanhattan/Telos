@@ -1,6 +1,6 @@
-﻿//go:build linux
+//go:build linux
 
-// Linux V1 sandbox backend using Landlock, seccomp-BPF, and namespaces.
+// Package sandbox provides the Linux V1 sandbox backend using Landlock, seccomp-BPF, and namespaces.
 //
 // Architecture: the sandbox helper is invoked via re-exec of the Telos binary
 // with _TELOS_SANDBOX=1. The helper reads a JSON-encoded Policy from stdin,
@@ -44,7 +44,7 @@ func NewLinuxSandbox(selfPath string) (Sandbox, error) {
 
 // Exec runs the plugin within OS-level isolation.
 func (s *linuxSandbox) Exec(ctx context.Context, executable string, dir string,
-	stdin []byte, policy Policy) (Result, error) {
+	stdin []byte, policy *Policy) (Result, error) {
 
 	if err := policy.Validate(); err != nil {
 		return Result{}, fmt.Errorf("sandbox: invalid policy: %w", err)
@@ -60,9 +60,9 @@ func (s *linuxSandbox) Exec(ctx context.Context, executable string, dir string,
 
 	// Serialize policy for the sandbox helper.
 	helperInput := sandboxHelperInput{
-		Policy:     policy,
-		Executable: executable,
-		Dir:        dir,
+		Policy:      *policy,
+		Executable:  executable,
+		Dir:         dir,
 		PluginStdin: stdin,
 		LandlockABI: abi,
 	}
@@ -80,7 +80,7 @@ func (s *linuxSandbox) Exec(ctx context.Context, executable string, dir string,
 	defer cancel()
 
 	// Spawn sandbox helper via re-exec.
-	cmd := exec.CommandContext(execCtx, s.selfPath)
+	cmd := exec.CommandContext(execCtx, s.selfPath) // #nosec G204 -- selfPath originates from os.Executable() in all production callers; os.Stat validates existence but trust derives from the call-site invariant, not from Stat
 	cmd.Env = append(os.Environ(), sandboxEnvVar+"=1")
 	cmd.Dir = dir
 	cmd.Stdin = strings.NewReader(string(policyJSON) + "\n")
@@ -162,12 +162,12 @@ func RunSandboxHelper() error {
 	}
 
 	// 2. Apply resource limits via prlimit.
-	if err := applyResourceLimits(input.Policy); err != nil {
+	if err := applyResourceLimits(&input.Policy); err != nil {
 		return fmt.Errorf("sandbox helper: resource limits: %w", err)
 	}
 
 	// 3. Apply Landlock filesystem restrictions.
-	if err := applyLandlock(input.Policy, input.LandlockABI); err != nil {
+	if err := applyLandlock(&input.Policy, input.LandlockABI); err != nil {
 		return fmt.Errorf("sandbox helper: landlock: %w", err)
 	}
 
@@ -179,7 +179,7 @@ func RunSandboxHelper() error {
 
 	// 5. Exec the plugin. This replaces the sandbox helper process image.
 	//    The Landlock + seccomp restrictions are inherited by the exec'd process.
-	return syscall.Exec(input.Executable, []string{input.Executable}, os.Environ())
+	return syscall.Exec(input.Executable, []string{input.Executable}, os.Environ()) // #nosec G204 -- Executable is passed from the supervisor which validated it against the plugin manifest
 }
 
 // landlockABIVersion returns the highest Landlock ABI version supported by the kernel.
@@ -197,7 +197,7 @@ func landlockABIVersion() (int, error) {
 }
 
 // applyLandlock creates and enforces a Landlock ruleset for the given policy.
-func applyLandlock(p Policy, abi int) error {
+func applyLandlock(p *Policy, abi int) error {
 	// ABI v1 handled access rights.
 	var fsAccess uint64 = 0x1fff // LANDLOCK_ACCESS_FS_* (all 13 bits for ABI v1)
 
@@ -215,7 +215,7 @@ func applyLandlock(p Policy, abi int) error {
 	}
 
 	attr := landlockAttr{AllowedAccessFS: fsAccess}
-	attrSize := uint64(16) // sizeof(landlockAttr)
+	attrSize := uint64(16) // 16 is sizeof(landlockAttr)
 
 	fd, _, errno := unix.Syscall(
 		unix.SYS_LANDLOCK_CREATE_RULESET,
@@ -227,22 +227,19 @@ func applyLandlock(p Policy, abi int) error {
 		return fmt.Errorf("landlock_create_ruleset: %w", errno)
 	}
 	rulesetFD := int(fd)
-	defer unix.Close(rulesetFD)
+	defer func() { _ = unix.Close(rulesetFD) }()
 
 	// Read-only access rights.
 	var roAccess uint64 = 0x01 | 0x02 | 0x04 | 0x08 | 0x20 | 0x40 | 0x80
 	// Read-write adds: write, remove dir, remove file, make* ops.
-	var rwAccess uint64 = fsAccess
+	rwAccess := fsAccess
 
 	// Add rules for read paths.
 	allReadPaths := append([]string{}, p.ReadPaths...)
-	for _, exe := range p.Executables {
-		// Plugin's own directory gets read + execute.
-		allReadPaths = append(allReadPaths, exe)
-	}
+	allReadPaths = append(allReadPaths, p.Executables...)
+	const landlockAccessFSExecute = 0x10
 	for _, path := range allReadPaths {
-		if err := landlockAddPathRule(rulesetFD, path, roAccess|0x10); err != nil {
-			// 0x10 = LANDLOCK_ACCESS_FS_EXECUTE
+		if err := landlockAddPathRule(rulesetFD, path, roAccess|landlockAccessFSExecute); err != nil {
 			return fmt.Errorf("landlock add read rule %q: %w", path, err)
 		}
 	}
@@ -273,12 +270,16 @@ func landlockAddPathRule(rulesetFD int, path string, accessRights uint64) error 
 	if err != nil {
 		return fmt.Errorf("open %q: %w", path, err)
 	}
-	defer unix.Close(fd)
+	defer func() { _ = unix.Close(fd) }()
 
 	type landlockPathBeneath struct {
 		AllowedAccess uint64
 		ParentFD      int32
 		_             [4]byte // padding
+	}
+
+	if fd > 2147483647 || fd < 0 {
+		return fmt.Errorf("invalid fd: %d", fd)
 	}
 
 	rule := landlockPathBeneath{
@@ -300,7 +301,7 @@ func landlockAddPathRule(rulesetFD int, path string, accessRights uint64) error 
 }
 
 // applyResourceLimits sets prlimit constraints on the current process.
-func applyResourceLimits(p Policy) error {
+func applyResourceLimits(p *Policy) error {
 	if p.MemoryBytes > 0 {
 		if err := setRlimit(unix.RLIMIT_AS, uint64(p.MemoryBytes)); err != nil {
 			return fmt.Errorf("RLIMIT_AS: %w", err)
@@ -347,6 +348,5 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 // unsafePointer is a helper to get an unsafe.Pointer from any value.
 // This avoids importing unsafe in multiple places.
 func unsafePointer[T any](v *T) unsafe.Pointer {
-	return unsafe.Pointer(v)
+	return unsafe.Pointer(v) // #nosec G103 -- required for syscall argument passing
 }
-

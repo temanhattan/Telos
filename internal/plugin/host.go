@@ -1,4 +1,4 @@
-﻿// Package plugin implements the Plugin Host (S12).
+// Package plugin implements the Plugin Host (S12).
 package plugin
 
 import (
@@ -158,11 +158,19 @@ func (h *Host) load(dir string) (Plugin, error) {
 	if mf.Type == "ClassificationRule" && (mf.Permissions.Network || len(mf.Permissions.Subprocess) > 0 || len(mf.Permissions.FilesystemRead) > 0 || len(mf.Permissions.FilesystemWrite) > 0) {
 		return Plugin{}, errors.New("classification plugins cannot request permissions")
 	}
+	readPaths, err := sandbox.NormalizeManifestPaths(dir, mf.Permissions.FilesystemRead)
+	if err != nil {
+		return Plugin{}, fmt.Errorf("invalid filesystem_read paths: %w", err)
+	}
+	writePaths, err := sandbox.NormalizeManifestPaths(dir, mf.Permissions.FilesystemWrite)
+	if err != nil {
+		return Plugin{}, fmt.Errorf("invalid filesystem_write paths: %w", err)
+	}
 	exe, err := executablePath(dir, mf.Executable)
 	if err != nil {
 		return Plugin{}, err
 	}
-	return Plugin{ID: mf.ID, Dir: dir, Executable: exe, Manifest: model.PluginManifest{Name: mf.Name, Version: model.Version(mf.Version), Author: mf.Author, Description: mf.Description, InterfaceVersion: model.Version(fmt.Sprint(mf.InterfaceVersion)), Type: mf.Type, Capabilities: flattenCapabilities(&mf.Capabilities), FilesystemRead: mf.Permissions.FilesystemRead, FilesystemWrite: mf.Permissions.FilesystemWrite, NetworkAllowed: mf.Permissions.Network, Subprocesses: mf.Permissions.Subprocess, Signature: mf.Signature}}, nil
+	return Plugin{ID: mf.ID, Dir: dir, Executable: exe, Manifest: model.PluginManifest{Name: mf.Name, Version: model.Version(mf.Version), Author: mf.Author, Description: mf.Description, InterfaceVersion: model.Version(fmt.Sprint(mf.InterfaceVersion)), Type: mf.Type, Capabilities: flattenCapabilities(&mf.Capabilities), FilesystemRead: readPaths, FilesystemWrite: writePaths, NetworkAllowed: mf.Permissions.Network, Subprocesses: mf.Permissions.Subprocess, Signature: mf.Signature}}, nil
 }
 
 func executablePath(dir, declared string) (string, error) {
@@ -171,15 +179,29 @@ func executablePath(dir, declared string) (string, error) {
 			return "", errors.New("executable must be a relative package path")
 		}
 		p := filepath.Join(dir, declared)
-		if st, e := os.Stat(p); e != nil || st.IsDir() {
-			return "", errors.New("declared executable not found")
+		resolved, err := filepath.EvalSymlinks(p)
+		if err != nil {
+			return "", fmt.Errorf("resolve executable: %w", err)
 		}
-		return p, nil
+		resolved = filepath.Clean(resolved)
+		if !sandbox.IsSubpath(dir, resolved) {
+			return "", errors.New("executable escapes plugin directory")
+		}
+		if st, e := os.Stat(resolved); e != nil || st.IsDir() {
+			return "", errors.New("declared executable not found or is a directory")
+		}
+		return resolved, nil
 	}
 	for _, name := range []string{"plugin", "plugin.exe", "executable", "executable.exe"} {
 		p := filepath.Join(dir, name)
-		if st, e := os.Stat(p); e == nil && !st.IsDir() {
-			return p, nil
+		resolved, err := filepath.EvalSymlinks(p)
+		if err == nil {
+			resolved = filepath.Clean(resolved)
+			if sandbox.IsSubpath(dir, resolved) {
+				if st, e := os.Stat(resolved); e == nil && !st.IsDir() {
+					return resolved, nil
+				}
+			}
 		}
 	}
 	return "", errors.New("manifest must declare an executable")
@@ -270,7 +292,7 @@ func (h *Host) InvokeSandboxed(ctx context.Context, id string, request any) (jso
 		return nil, fmt.Errorf("encode request: %w", err)
 	}
 
-	policy := h.buildPolicy(p)
+	policy := h.buildPolicy(&p)
 	result, err := h.opts.Sandbox.Exec(ctx, p.Executable, p.Dir,
 		append(input, '\n'), policy)
 	if err != nil {
@@ -284,9 +306,9 @@ func (h *Host) InvokeSandboxed(ctx context.Context, id string, request any) (jso
 }
 
 // buildPolicy translates a plugin's manifest permissions into a sandbox Policy.
-func (h *Host) buildPolicy(p Plugin) sandbox.Policy {
-	return sandbox.Policy{
-		ReadPaths:   p.Manifest.FilesystemRead,
+func (h *Host) buildPolicy(p *Plugin) *sandbox.Policy {
+	return &sandbox.Policy{
+		ReadPaths:   append([]string{p.Dir}, p.Manifest.FilesystemRead...),
 		WritePaths:  p.Manifest.FilesystemWrite,
 		Executables: []string{p.Executable},
 		Network:     p.Manifest.NetworkAllowed,

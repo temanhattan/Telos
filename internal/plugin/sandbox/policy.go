@@ -9,6 +9,8 @@ package sandbox
 import (
 	"context"
 	"errors"
+	"fmt"
+	"path/filepath"
 )
 
 // Policy describes the security envelope for a plugin invocation.
@@ -41,10 +43,16 @@ func (p *Policy) Validate() error {
 		if path == "" {
 			return errors.New("sandbox: empty read path")
 		}
+		if !filepath.IsAbs(path) {
+			return fmt.Errorf("sandbox: read path %q is not absolute", path)
+		}
 	}
 	for _, path := range p.WritePaths {
 		if path == "" {
 			return errors.New("sandbox: empty write path")
+		}
+		if !filepath.IsAbs(path) {
+			return fmt.Errorf("sandbox: write path %q is not absolute", path)
 		}
 	}
 	if len(p.Executables) == 0 {
@@ -53,6 +61,9 @@ func (p *Policy) Validate() error {
 	for _, exe := range p.Executables {
 		if exe == "" {
 			return errors.New("sandbox: empty executable path")
+		}
+		if !filepath.IsAbs(exe) {
+			return fmt.Errorf("sandbox: executable path %q is not absolute", exe)
 		}
 	}
 	return nil
@@ -70,5 +81,5 @@ type Sandbox interface {
 	// The implementation must enforce as many policy constraints as the
 	// platform supports and log the enforcement level at audit severity.
 	Exec(ctx context.Context, executable string, dir string,
-		stdin []byte, policy Policy) (Result, error)
+		stdin []byte, policy *Policy) (Result, error)
 }

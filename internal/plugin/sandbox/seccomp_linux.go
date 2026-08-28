@@ -1,4 +1,4 @@
-﻿//go:build linux
+//go:build linux
 
 package sandbox
 
@@ -22,6 +22,7 @@ const (
 
 	seccompRetAllow = 0x7fff0000
 	errnoEPERM      = 0x00050001
+	errnoENOSYS     = 0x00050026
 
 	offsetNR   = 0
 	offsetArch = 4
@@ -53,10 +54,10 @@ type bpfInsn struct {
 // to all syscalls not explicitly denied.
 //
 // Key behaviors:
-//   - Denies dangerous syscalls outright (ptrace, mount, reboot, etc.)
-//   - Denies setns and unshare outright (no namespace manipulation)
-//   - Allows clone/clone3 for normal threading but denies CLONE_NEW* flags
-//   - Returns EPERM (not SIGKILL) for graceful error handling
+//   - Denies dangerous syscalls outright (ptrace, mount, reboot, etc.) with EPERM
+//   - Denies setns and unshare outright (no namespace manipulation) with EPERM
+//   - Allows clone for normal threading but denies CLONE_NEW* flags with EPERM
+//   - Unconditionally denies clone3 with ENOSYS to prevent namespace creation while triggering libc fallback
 //   - Validates AUDIT_ARCH_X86_64 to prevent 32-bit compat bypass
 func buildSeccompFilter() []bpfInsn {
 	deniedSyscalls := []uint32{
@@ -84,57 +85,66 @@ func buildSeccompFilter() []bpfInsn {
 	var prog []bpfInsn
 
 	// Load arch.
-	prog = append(prog, bpfInsn{Code: bpfLD | bpfW | bpfABS, K: uint32(offsetArch)})
-
 	// Check arch == AUDIT_ARCH_X86_64, deny if mismatch.
-	prog = append(prog, bpfInsn{Code: bpfJMP | bpfJEQ | bpfK, K: 0xc000003e, Jt: 1, Jf: 0})
-	prog = append(prog, bpfInsn{Code: bpfRET | bpfK, K: errnoEPERM})
-
 	// Load syscall number.
-	prog = append(prog, bpfInsn{Code: bpfLD | bpfW | bpfABS, K: uint32(offsetNR)})
+	prog = append(prog,
+		bpfInsn{Code: bpfLD | bpfW | bpfABS, K: uint32(offsetArch)},
+		bpfInsn{Code: bpfJMP | bpfJEQ | bpfK, K: 0xc000003e, Jt: 1, Jf: 0},
+		bpfInsn{Code: bpfRET | bpfK, K: errnoEPERM},
+		bpfInsn{Code: bpfLD | bpfW | bpfABS, K: uint32(offsetNR)},
+	)
 
-	// Deny each listed syscall.
+	// Deny each listed syscall with EPERM.
 	for _, nr := range deniedSyscalls {
-		prog = append(prog, bpfInsn{Code: bpfJMP | bpfJEQ | bpfK, K: nr, Jt: 0, Jf: 1})
+		// Jf: 0 ensures we fall through to the next check if the syscall doesn't match.
+		prog = append(prog, bpfInsn{Code: bpfJMP | bpfJEQ | bpfK, K: nr, Jt: 0, Jf: 0})
 	}
+
+	// Check clone3 (syscall 435). We deny it unconditionally with ENOSYS.
+	clone3CheckIdx := len(prog)
+	prog = append(prog, bpfInsn{Code: bpfJMP | bpfJEQ | bpfK, K: 435, Jt: 0, Jf: 0})
 
 	// Check clone.
 	cloneCheckStart := len(prog)
-	prog = append(prog, bpfInsn{Code: bpfJMP | bpfJEQ | bpfK, K: unix.SYS_CLONE, Jt: 0, Jf: 1})
-
-	// Check clone3.
-	clone3CheckIdx := len(prog)
-	prog = append(prog, bpfInsn{Code: bpfJMP | bpfJEQ | bpfK, K: 435, Jt: 0, Jf: 1})
+	prog = append(prog, bpfInsn{Code: bpfJMP | bpfJEQ | bpfK, K: unix.SYS_CLONE, Jt: 0, Jf: 0})
 
 	// Default allow.
-	allowIdx := len(prog)
 	prog = append(prog, bpfInsn{Code: bpfRET | bpfK, K: seccompRetAllow})
 
 	// Clone flag check: load args[0], AND with CLONE_NEW* mask.
 	flagCheckStart := len(prog)
-	prog = append(prog, bpfInsn{Code: bpfLD | bpfW | bpfABS, K: uint32(offsetArgs)})
-	prog = append(prog, bpfInsn{Code: bpfALU | bpfAND | bpfK, K: cloneNewAllMask})
-	prog = append(prog, bpfInsn{Code: bpfJMP | bpfJEQ | bpfK, K: 0, Jt: 1, Jf: 0})
+	prog = append(prog,
+		bpfInsn{Code: bpfLD | bpfW | bpfABS, K: uint32(offsetArgs)},
+		bpfInsn{Code: bpfALU | bpfAND | bpfK, K: cloneNewAllMask},
+		bpfInsn{Code: bpfJMP | bpfJEQ | bpfK, K: 0, Jt: 1, Jf: 0},
+	)
 
-	// Deny (namespace flags set).
-	denyIdx := len(prog)
+	// EPERM return (for denied syscalls and clone flags).
+	denyEPERMIdx := len(prog)
 	prog = append(prog, bpfInsn{Code: bpfRET | bpfK, K: errnoEPERM})
 
-	// Allow (normal clone).
+	// Allow return (for clone without namespace flags).
 	prog = append(prog, bpfInsn{Code: bpfRET | bpfK, K: seccompRetAllow})
 
-	// Fix jump targets for denied syscalls.
+	// ENOSYS return (for clone3).
+	denyENOSYSIdx := len(prog)
+	prog = append(prog, bpfInsn{Code: bpfRET | bpfK, K: errnoENOSYS})
+
+	// Fix jump targets.
+	// 1. All deniedSyscalls jump to denyEPERMIdx if true.
 	firstDenyIdx := 4
-	for i := firstDenyIdx; i < cloneCheckStart; i++ {
-		if prog[i].Code == bpfJMP|bpfJEQ|bpfK {
-			prog[i].Jt = uint8(denyIdx - i - 1)
-		}
+	for i := firstDenyIdx; i < clone3CheckIdx; i++ {
+		jt := denyEPERMIdx - i - 1
+		prog[i].Jt = uint8(jt)
 	}
 
-	// clone/clone3 -> flag check.
-	prog[cloneCheckStart].Jt = uint8(flagCheckStart - cloneCheckStart - 1)
-	prog[clone3CheckIdx].Jt = uint8(flagCheckStart - clone3CheckIdx - 1)
-	prog[clone3CheckIdx].Jf = uint8(allowIdx - clone3CheckIdx - 1)
+	// 2. clone3 jumps to denyENOSYSIdx if true.
+	jtClone3 := denyENOSYSIdx - clone3CheckIdx - 1
+	prog[clone3CheckIdx].Jt = uint8(jtClone3)
+
+	// 3. clone jumps to flagCheckStart if true.
+	jtClone := flagCheckStart - cloneCheckStart - 1
+	prog[cloneCheckStart].Jt = uint8(jtClone)
 
 	return prog
 }
@@ -150,8 +160,12 @@ func installSeccomp() error {
 		Filter *bpfInsn
 	}
 
+	if len(filter) > 65535 {
+		return unix.E2BIG
+	}
+
 	fprog := sockFprog{
-		Len:    uint16(len(filter)),
+		Len:    uint16(len(filter)), // #nosec G115 -- length is bounds-checked above
 		Filter: &filter[0],
 	}
 
@@ -159,7 +173,7 @@ func installSeccomp() error {
 		unix.SYS_SECCOMP,
 		1, // SECCOMP_SET_MODE_FILTER
 		0,
-		uintptr(unsafe.Pointer(&fprog)),
+		uintptr(unsafe.Pointer(&fprog)), // #nosec G103 -- required for seccomp syscall
 	)
 	if errno != 0 {
 		return errno

@@ -1,4 +1,4 @@
-﻿// Package main provides the entry point for the Telos CLI.
+// Package main provides the entry point for the Telos CLI.
 package main
 
 import (
@@ -14,6 +14,7 @@ func main() {
 	// was re-exec'd as a sandbox helper. Apply OS-level restrictions and exec
 	// the plugin. This path never reaches normal Telos logic.
 	if os.Getenv("_TELOS_SANDBOX") == "1" {
+		//nolint:staticcheck // Intentional architecture fallback for non-Linux where runSandboxHelper always errors
 		if err := runSandboxHelper(); err != nil {
 			fmt.Fprintf(os.Stderr, "sandbox helper: %v\n", err)
 			os.Exit(126) // Shell convention for "cannot execute"
