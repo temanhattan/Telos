@@ -117,6 +117,8 @@ import (
 	"fmt"
 	"os"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 func main() {
@@ -135,7 +137,7 @@ func main() {
 	// 2. Test clone(CLONE_NEWUSER) — seccomp should deny with EPERM.
 	// The BPF filter inspects clone's flags register and denies CLONE_NEW*.
 	const cloneNewUser = 0x10000000
-	_, _, err = syscall.RawSyscall(syscall.SYS_CLONE, cloneNewUser, 0, 0)
+	_, _, err = syscall.RawSyscall(unix.SYS_CLONE, cloneNewUser, 0, 0)
 	if err == syscall.EPERM {
 		results = append(results, "clone_newuser: EPERM")
 	} else {
@@ -152,7 +154,7 @@ func main() {
 
 	// 4. Test unshare(CLONE_NEWNS) — seccomp denylist should deny with EPERM.
 	const cloneNewNS = 0x00020000
-	_, _, err = syscall.RawSyscall(syscall.SYS_UNSHARE, cloneNewNS, 0, 0)
+	_, _, err = syscall.RawSyscall(unix.SYS_UNSHARE, cloneNewNS, 0, 0)
 	if err == syscall.EPERM {
 		results = append(results, "unshare: EPERM")
 	} else {
@@ -160,7 +162,7 @@ func main() {
 	}
 
 	// 5. Test setns — seccomp denylist should deny with EPERM.
-	_, _, err = syscall.RawSyscall(syscall.SYS_SETNS, 0, 0, 0)
+	_, _, err = syscall.RawSyscall(unix.SYS_SETNS, 0, 0, 0)
 	if err == syscall.EPERM {
 		results = append(results, "setns: EPERM")
 	} else {
