@@ -1,7 +1,7 @@
 # Telos — Project Status
 
 > **Status:** Active
-> **Last Updated:** 2026-08-21 (V1 Linux sandbox implementation)
+> **Last Updated:** 2026-08-29 (Repository Audit)
 > **Author:** AI Engineering Review (Antigravity)
 > **Audience:** Project maintainers, future contributors, AI sessions
 > **Purpose:** Engineering dashboard — understand exactly where the project stands
@@ -40,7 +40,7 @@ The Telos project has completed **extensive, production-grade documentation**, i
 | **Logging & Audit (S16)** | Partially implemented: zerolog wrapper with structured JSON output, level mapping, component tagging, correlation ID context, and a custom `audit` severity. Tested. |
 | **Domain model (S4 foundation)** | Implemented in `internal/model`: behavior-free, platform-neutral types for the manifest and its sections, plans/actions, archive and integrity records, plugin metadata, approvals, restore results, and verification reports. Tested for representative manifest and archive construction. |
 | **Crypto Engine (S9 foundation)** | Implemented in `internal/crypto`: Argon2id key derivation, AES-256-GCM authenticated envelopes, general/credential key-purpose separation, SHA-256 hashing, and malformed-envelope work-factor bounds. Tested. GPG signing, archive-container serialization, and subsystem integration remain unimplemented. |
-| **Plugin Host (S12 skeleton + V1 sandbox)** | Implemented in `internal/plugin`: directory scanning, strict manifest parsing, interface/type/permission validation, duplicate-ID isolation, stable registration snapshots, bounded timed JSON subprocess invocation, and V1 OS-level plugin isolation on Linux (Landlock + seccomp + namespaces). Signature verification, capability-index dispatch, and non-Linux sandbox backends remain unimplemented. |
+| **Plugin Host (S12 skeleton + V1 sandbox)** | Implemented in `internal/plugin`: directory scanning, strict manifest parsing, interface/type/permission validation, duplicate-ID isolation, stable registration snapshots, bounded timed JSON subprocess invocation, and V1 OS-level plugin isolation on Linux (Landlock + seccomp + namespaces, NO_NEW_PRIVS, and resource limits). Trust verification (signature checking, trusted key handling, TOFU, and package integrity) is documented but **NOT implemented**. The `Signature` field is parsed but ignored. Capability-index dispatch and non-Linux sandbox backends also remain unimplemented. |
 | **CLI entry point** | Skeleton `cmd/telos/main.go` — creates a logger and invokes a placeholder subsystem. Not functional. |
 | **Everything else** | Empty directories or does not exist. |
 
@@ -67,7 +67,7 @@ The roadmap defined in `08_PROJECT_CONTEXT.md` §10 outlines four phases. Below 
 
 | Milestone | Status | Notes |
 |-----------|--------|-------|
-| Configuration Manager (S17) — full implementation | ✅ Done | 8 source files, 1 ADR, 6 unit test cases. |
+| Configuration Manager (S17) — full implementation | ✅ Done | 10 source files, 1 ADR, 6 unit test cases. |
 | Logging & Audit (S16) — core implementation | 🟡 Partial | Logger wrapper exists; audit-level logging works. Missing: file output, log rotation, append-only guarantees, audit trail format. |
 | Project scaffolding (module, directories) | ✅ Done | `go.mod`, package layout, empty placeholder dirs. |
 | CLI Shell (S1) — command framework | ❌ Not started | `main.go` exists but has no argument parsing. |
@@ -142,8 +142,8 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 
 | ID | Subsystem | Package | Files | Lines | Tests | Test Coverage |
 |----|-----------|---------|-------|-------|-------|--------------|
-| **S17** | Configuration Manager | `internal/config` | 8 | ~558 | 6 test cases in `loader_test.go` (260 lines) | Moderate — covers merge, strict decoding, plugin keys, validation accumulation, immutability, nested merge. Missing: env_mapper tests, business_validation edge cases, error type tests. |
-| **S12** | Plugin Host | `internal/plugin` | source + sandbox + test | — | 2+ | Core registration, subprocess protocol, and V1 Linux sandbox (Landlock, seccomp, namespaces) coverage. Trust verification, dispatch integration, and non-Linux sandbox pending. |
+| **S17** | Configuration Manager | `internal/config` | 10 | ~558 | 6 test cases in `loader_test.go` (260 lines) | Moderate — covers merge, strict decoding, plugin keys, validation accumulation, immutability, nested merge. Missing: env_mapper tests, business_validation edge cases, error type tests. |
+| **S12** | Plugin Host | `internal/plugin` | source + sandbox + test | — | 4+ | Core registration, subprocess protocol. Linux seccomp structural tests pass. Runtime Linux integration tests exist but are skipped in unprivileged CI environments. Trust verification is completely unimplemented. |
 | **S16** | Logging & Audit | `internal/logger` | 1 | 120 | 5 test cases in `log_test.go` (123 lines) | Moderate — covers level creation, component tagging, context correlation, log levels, audit severity, JSON output. Missing: nil writer edge case, concurrent usage. |
 
 ### Placeholder / Skeleton
@@ -196,6 +196,25 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 
 ---
 
+## 5.5. Security & Workstream A Status
+
+### Workstream A (V1 Sandbox Remediation)
+The V1 Linux sandbox is **implemented in code**, providing OS-level isolation via:
+- Landlock (filesystem rules)
+- Seccomp-BPF (denylist for `mount`, `ptrace`, `clone3`, `unshare`, etc.)
+- Namespaces (PID and Network)
+- Resource limits (prlimit for memory, processes, file size)
+- `PR_SET_NO_NEW_PRIVS` enforcement
+- Output limits and timeouts
+
+**Verification state:** 
+Linux seccomp rules are statically verified by tests (`seccomp_linux_test.go`). However, actual runtime sandbox enforcement (`sandbox_integration_test.go`) is currently **skipped in CI** because the GitHub Actions runner lacks the necessary capabilities (`EPERM` when trying to use `CLONE_NEWPID` and `CLONE_NEWNET`). Cross-platform fallbacks are not implemented.
+
+### Trust Phase
+Trust verification is **NOT implemented**. Although the documentation describes signature verification, trusted key handling, TOFU (Trust On First Use), official/community plugin verification, and package integrity verification, none of this exists in the codebase. The `Signature` field is parsed from the manifest but no verification occurs.
+
+---
+
 ## 6. Testing Status
 
 ### Unit Tests
@@ -205,7 +224,7 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 | `internal/config` | `loader_test.go` | 6 | ✅ Verified passing | Tests: full merge pipeline, strict decoding rejection, plugin key acceptance, validation accumulation, profile immutability, nested merge. |
 | `internal/logger` | `log_test.go` | 6 | ✅ Verified passing | Tests: level creation, component tagging, context correlation, log levels, audit severity, JSON output. |
 | `internal/model` | `entities_test.go` | 2 | ✅ Verified passing | Tests: manifest discovery section retention, archive identity and storage field retention. |
-| `internal/plugin` | `host_test.go` | 2 | ✅ 1 pass, 1 skip (Windows) | Tests: discover registers valid and skips invalid, invoke uses JSON protocol (skipped on Windows — shell fixture incompatibility). |
+| `internal/plugin` | `host_test.go`, sandbox tests | 4+ | ✅ 2 pass, 2 skip | Tests: discover registers valid and skips invalid. Linux seccomp structural tests verify BPF programs pass. Runtime integration test is skipped in CI (EPERM on CLONE_NEWPID/NEWNET). Windows invoke tests skipped. |
 
 ### Integration Tests
 
@@ -223,6 +242,7 @@ None.
 
 - No test helpers, fixtures, or shared test utilities.
 - CI/CD pipeline configured: `.github/workflows/ci.yml` with test (ubuntu + windows, race detector on Linux), lint (golangci-lint v2), and build jobs.
+- **Note:** Linux runtime sandbox integration tests are currently skipped in CI due to missing unprivileged user namespace capabilities (`EPERM` on `CLONE_NEWPID` / `CLONE_NEWNET`).
 - No test coverage reporting.
 - Linting configured: `.golangci.yml` with gosec, govet, staticcheck, revive, gocritic, and 8 additional linters.
 
@@ -290,7 +310,7 @@ The dependency footprint is minimal and intentional — three direct dependencie
 | ID | Risk | Impact | Likelihood | Mitigation |
 |----|------|--------|-----------|------------|
 | **R-1** | **Architecture-implementation gap.** 315 KB of design docs with ~700 lines of implementation code. Risk of drift as implementation progresses. | High | Medium | Treat docs as source of truth. Update docs when implementation forces design changes. Use ADRs for deviations. |
-| **R-2** | **Plugin sandbox enforcement.** V1 implements OS-level isolation on Linux (Landlock, seccomp, namespaces). Non-Linux platforms have degraded enforcement. Full cross-platform sandbox is V2 scope. | Critical | Medium | V1 Linux sandbox implemented. Residual risk depends on kernel integrity, correct configuration, and implementation correctness. Independent security review required for definitive risk rating. |
+| **R-2** | **Plugin sandbox enforcement.** V1 implements OS-level isolation on Linux (Landlock, seccomp, namespaces). Non-Linux platforms have degraded enforcement. Full cross-platform sandbox is V2 scope. | Critical | Medium | V1 Linux sandbox implemented. Residual risk depends on kernel integrity, correct configuration, and implementation correctness. **Note: CI cannot currently verify Linux runtime enforcement.** Independent security review required for definitive risk rating. |
 | **R-3** | **Crypto implementation correctness.** The architecture specifies AES-256-GCM, Argon2, SHA-256, and GPG signing. Implementation must use vetted libraries and correct patterns (Security Assumption SA-9). | Critical | Low | Use `golang.org/x/crypto` for Argon2, stdlib `crypto/aes` + `crypto/cipher` for AES-256-GCM, stdlib `crypto/sha256` for hashing. Do not roll custom crypto. |
 | **R-4** | **CI/CD.** CI/CD is configured (`.github/workflows/ci.yml`, `.golangci.yml`). Tests, linting, and builds run on push/PR for ubuntu and windows. | Low | Low | Operational. Consider adding test coverage reporting and security scanning. |
 | **R-5** | **Single contributor.** Bus factor of 1. All design knowledge lives in docs (good) but implementation velocity is constrained. | Medium | — | The comprehensive docs mitigate knowledge loss. Consider prioritizing an onboarding guide (`06_Coding_Standards.md`). |
@@ -387,4 +407,4 @@ The following sequence respects the dependency graph defined in `02_Architecture
 
 ---
 
-> **This document is a snapshot.** It reflects the state of the project as of 2026-08-20. Update it after each significant implementation milestone.
+> **This document is a snapshot.** It reflects the state of the project as of 2026-08-29. Update it after each significant implementation milestone.
