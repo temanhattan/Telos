@@ -37,6 +37,17 @@ jobs:
       - name: Run go vet
         run: go vet ./...
 
+      - name: Runner diagnostics
+        if: runner.os == 'Linux'
+        run: |
+          uname -a
+          findmnt -no TARGET,FSTYPE,OPTIONS /tmp || true
+          mount | grep ' /tmp ' || true
+          ls -ld /tmp
+          stat /tmp
+          id
+          aa-status || true
+
       - name: Run tests (Linux, with race detector)
         if: runner.os == 'Linux'
         run: go test ./... -v -count=1 -race -timeout 5m

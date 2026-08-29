@@ -41,6 +41,40 @@ func TestLinuxSandboxIntegration(t *testing.T) {
 		t.Fatalf("Failed to build telos CLI: %v\n%s", err, out)
 	}
 
+	// --- DIAGNOSTICS FOR RUNNER ENVIRONMENT ---
+	t.Log("=== RUNNER DIAGNOSTICS ===")
+	
+	// ls -l
+	if out, err := exec.Command("ls", "-l", telosExe).CombinedOutput(); err == nil {
+		t.Logf("ls -l:\n%s", out)
+	} else {
+		t.Logf("ls -l failed: %v\n%s", err, out)
+	}
+	
+	// file
+	if out, err := exec.Command("file", telosExe).CombinedOutput(); err == nil {
+		t.Logf("file:\n%s", out)
+	} else {
+		t.Logf("file failed: %v\n%s", err, out)
+	}
+	
+	// stat
+	if out, err := exec.Command("stat", telosExe).CombinedOutput(); err == nil {
+		t.Logf("stat:\n%s", out)
+	} else {
+		t.Logf("stat failed: %v\n%s", err, out)
+	}
+	
+	// Direct execution test
+	directCmd := exec.Command(telosExe, "--help")
+	if out, err := directCmd.CombinedOutput(); err != nil {
+		t.Logf("Direct execution of %s failed: %v\nOutput: %s", telosExe, err, out)
+	} else {
+		t.Logf("Direct execution succeeded. Output snippet: %s", string(out[:min(len(out), 100)]))
+	}
+	t.Log("=== END DIAGNOSTICS ===")
+	// ------------------------------------------
+
 	sb, err := sandbox.NewLinuxSandbox(telosExe)
 	if err != nil {
 		t.Skipf("Sandbox not supported on this kernel: %v", err)
