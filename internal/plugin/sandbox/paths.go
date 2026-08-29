@@ -65,6 +65,9 @@ func NormalizeManifestPaths(baseDir string, declared []string) ([]string, error)
 // IsSubpath reports whether child is a sub-path of parent after cleaning.
 // Both paths must be absolute.
 func IsSubpath(parent, child string) bool {
+	if p, err := filepath.EvalSymlinks(parent); err == nil {
+		parent = p
+	}
 	parent = filepath.Clean(parent)
 	child = filepath.Clean(child)
 
