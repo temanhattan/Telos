@@ -17,7 +17,7 @@ V1 uses Linux as the first fully supported sandbox platform, providing OS-level 
 - **Landlock LSM** for kernel-enforced filesystem access control (ABI v1 minimum, fails closed if unavailable).
 - **seccomp-BPF** for system call restriction (defense-in-depth denylist — not complete syscall confinement).
 - **Linux namespaces** (PID, network) for process and network isolation.
-- **seccomp clone/clone3 flag filtering** to prevent namespace creation by plugins (`setns` and `unshare` denied outright; `clone`/`clone3` allowed for normal threading but `CLONE_NEW*` flags denied).
+- **seccomp filtering for namespace creation:** `setns` and `unshare` are denied outright. `clone3` is denied unconditionally with `ENOSYS` (forcing a fallback to `clone`), and `clone` is allowed but its flags are filtered to deny any `CLONE_NEW*` flag.
 - **`PR_SET_NO_NEW_PRIVS`** for privilege escalation prevention.
 - **`prlimit`** for resource constraints (including `RLIMIT_NPROC` for fork bomb prevention — not as a namespace-creation security boundary).
 - **Process-group termination** for timeout enforcement.
@@ -32,12 +32,15 @@ The seccomp filter uses a **denylist** of dangerous syscalls rather than a stric
 
 For namespace-creation specifically:
 - `setns` and `unshare` are denied outright.
-- `clone` and `clone3` are allowed for normal thread/process creation, but the BPF filter evaluates their flags and denies calls with any `CLONE_NEW*` flag set.
+- `clone3` is unconditionally denied with `ENOSYS`. This is because `clone3` passes arguments via a struct pointer, which classic cBPF cannot securely dereference and inspect. By denying it, modern glibc/musl implementations gracefully fall back to `clone`.
+- `clone` is allowed for normal thread/process creation, but the BPF filter evaluates its flags (passed safely in registers) and denies calls with any `CLONE_NEW*` flag set.
 - `RLIMIT_NPROC` is a resource limit (fork bomb prevention), not a namespace-creation restriction.
 
-## Landlock Baseline
+## Landlock Baseline and Path Semantics
 
 V1 requires Landlock ABI v1 as the minimum security baseline. If the kernel does not support ABI v1, sandboxed plugin invocation **fails closed** — the plugin is not executed, and an `audit`-severity error is logged. Stronger ABIs (v2+) are used when available for above-baseline capabilities, but weaker-than-baseline enforcement never silently passes. `BestEffort()` is not used for core filesystem access control — only for above-baseline capabilities (e.g., "try to restrict truncation with ABI v3, but don't fail if only v1 is available").
+
+**Filesystem Execution Boundary:** Landlock enforces a strict semantic boundary between data manipulation and execution. `WritePaths` grant filesystem modification rights (write, create, remove) but explicitly EXCLUDE the `EXECUTE` right. Execution authorization belongs solely to the `Executables` directive. This prevents a compromised plugin from downloading a malicious payload to a data directory and executing it.
 
 ## Supervisor/Re-exec Architecture
 
@@ -84,6 +87,7 @@ Landlock restrictions are applied using the supervisor/re-exec pattern: Telos sp
 **Trade-offs:**
 - Sandbox escape remains a critical-impact threat; the actual residual risk depends on kernel integrity, correct configuration, and implementation correctness. A definitive risk rating requires independent security review, not merely an implementation plan.
 - Windows developers must use WSL2 or a Linux VM for sandbox-enforced plugin testing.
+- **CI Capability Limitations:** Full sandbox runtime enforcement testing requires namespace-creation capabilities (e.g., running as root). Capability-limited CI environments (like standard GitHub Actions runners) that return `EPERM` skip the namespace integration test. This limits automated assurance, but the production sandbox must always fail closed.
 - Non-Linux platforms operate with degraded security and explicit warnings.
 - seccomp uses a denylist (defense-in-depth), not complete syscall confinement. This is documented throughout the codebase and specifications.
 - Future Windows backend is architecturally supported but not V1 scope.
