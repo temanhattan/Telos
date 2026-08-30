@@ -249,7 +249,6 @@ func applyLandlock(p *Policy, abi int) error {
 
 	// Read-only access rights.
 	roAccess := uint64(landlockAccessFSReadFile | landlockAccessFSReadDir)
-	
 	// Read-write access adds write and directory modification rights, but strictly EXCLUDES execution.
 	rwAccess := fsAccess &^ landlockAccessFSExecute
 	// Add rules for read paths.
