@@ -71,8 +71,8 @@ func TestLinuxSandboxIntegration(t *testing.T) {
 	if writeErr := os.WriteFile("/tmp/allowed-file", []byte("ok"), 0644); writeErr != nil {
 		t.Fatal(writeErr)
 	}
-	if err := os.Mkdir("/tmp/allowed-dir", 0755); err != nil && !os.IsExist(err) {
-		t.Fatal(err)
+	if dirErr := os.Mkdir("/tmp/allowed-dir", 0755); dirErr != nil && !os.IsExist(dirErr) {
+		t.Fatal(dirErr)
 	}
 	if writeErr := os.WriteFile("/tmp/writable-file", []byte("ok"), 0644); writeErr != nil {
 		t.Fatal(writeErr)
