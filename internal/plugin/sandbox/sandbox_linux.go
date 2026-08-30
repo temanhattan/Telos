@@ -196,17 +196,35 @@ func landlockABIVersion() (int, error) {
 	return int(abi), nil
 }
 
+const (
+	landlockAccessFSExecute    = 1 << 0
+	landlockAccessFSWriteFile  = 1 << 1
+	landlockAccessFSReadFile   = 1 << 2
+	landlockAccessFSReadDir    = 1 << 3
+	landlockAccessFSRemoveDir  = 1 << 4
+	landlockAccessFSRemoveFile = 1 << 5
+	landlockAccessFSMakeChar   = 1 << 6
+	landlockAccessFSMakeDir    = 1 << 7
+	landlockAccessFSMakeReg    = 1 << 8
+	landlockAccessFSMakeSock   = 1 << 9
+	landlockAccessFSMakeFifo   = 1 << 10
+	landlockAccessFSMakeBlock  = 1 << 11
+	landlockAccessFSMakeSym    = 1 << 12
+	landlockAccessFSRefer      = 1 << 13
+	landlockAccessFSTruncate   = 1 << 14
+)
+
 // applyLandlock creates and enforces a Landlock ruleset for the given policy.
 func applyLandlock(p *Policy, abi int) error {
-	// ABI v1 handled access rights.
-	var fsAccess uint64 = 0x1fff // LANDLOCK_ACCESS_FS_* (all 13 bits for ABI v1)
+	// ABI v1 handled access rights (all 13 bits).
+	var fsAccess uint64 = (1 << 13) - 1
 
 	// For higher ABIs, add additional access rights.
 	if abi >= 2 {
-		fsAccess |= 1 << 13 // LANDLOCK_ACCESS_FS_REFER
+		fsAccess |= landlockAccessFSRefer
 	}
 	if abi >= 3 {
-		fsAccess |= 1 << 14 // LANDLOCK_ACCESS_FS_TRUNCATE
+		fsAccess |= landlockAccessFSTruncate
 	}
 
 	type landlockAttr struct {
@@ -230,17 +248,21 @@ func applyLandlock(p *Policy, abi int) error {
 	defer func() { _ = unix.Close(rulesetFD) }()
 
 	// Read-only access rights.
-	var roAccess uint64 = 0x01 | 0x02 | 0x04 | 0x08 | 0x20 | 0x40 | 0x80
-	// Read-write adds: write, remove dir, remove file, make* ops.
-	rwAccess := fsAccess
-
+	roAccess := uint64(landlockAccessFSReadFile | landlockAccessFSReadDir)
+	
+	// Read-write access adds write and directory modification rights, but strictly EXCLUDES execution.
+	rwAccess := fsAccess &^ landlockAccessFSExecute
 	// Add rules for read paths.
-	allReadPaths := append([]string{}, p.ReadPaths...)
-	allReadPaths = append(allReadPaths, p.Executables...)
-	const landlockAccessFSExecute = 0x10
-	for _, path := range allReadPaths {
-		if err := landlockAddPathRule(rulesetFD, path, roAccess|landlockAccessFSExecute); err != nil {
+	for _, path := range p.ReadPaths {
+		if err := landlockAddPathRule(rulesetFD, path, roAccess); err != nil {
 			return fmt.Errorf("landlock add read rule %q: %w", path, err)
+		}
+	}
+
+	// Add rules for executables (read + execute).
+	for _, path := range p.Executables {
+		if err := landlockAddPathRule(rulesetFD, path, roAccess|landlockAccessFSExecute); err != nil {
+			return fmt.Errorf("landlock add execute rule %q: %w", path, err)
 		}
 	}
 
@@ -271,6 +293,18 @@ func landlockAddPathRule(rulesetFD int, path string, accessRights uint64) error 
 		return fmt.Errorf("open %q: %w", path, err)
 	}
 	defer func() { _ = unix.Close(fd) }()
+
+	var stat unix.Stat_t
+	if err := unix.Fstat(fd, &stat); err != nil {
+		return fmt.Errorf("fstat %q: %w", path, err)
+	}
+
+	if stat.Mode&unix.S_IFMT != unix.S_IFDIR {
+		// Valid rights for a regular file.
+		const fileAccessMask = landlockAccessFSExecute | landlockAccessFSWriteFile |
+			landlockAccessFSReadFile | landlockAccessFSTruncate
+		accessRights &= fileAccessMask
+	}
 
 	type landlockPathBeneath struct {
 		AllowedAccess uint64

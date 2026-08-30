@@ -67,19 +67,32 @@ func TestLinuxSandboxIntegration(t *testing.T) {
 		t.Skipf("Sandbox not supported on this kernel: %v", err)
 	}
 
-	// Set up allowed and denied test files for Landlock verification.
-	if writeErr := os.WriteFile("/tmp/allowed", []byte("ok"), 0644); writeErr != nil {
+	// Set up allowed and denied test files and directories for Landlock verification.
+	if writeErr := os.WriteFile("/tmp/allowed-file", []byte("ok"), 0644); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	if err := os.Mkdir("/tmp/allowed-dir", 0755); err != nil && !os.IsExist(err) {
+		t.Fatal(err)
+	}
+	if writeErr := os.WriteFile("/tmp/writable-file", []byte("ok"), 0644); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	if writeErr := os.WriteFile("/tmp/writable-exe", []byte(""), 0755); writeErr != nil {
 		t.Fatal(writeErr)
 	}
 	if writeErr := os.WriteFile("/tmp/denied", []byte("secret"), 0644); writeErr != nil {
 		t.Fatal(writeErr)
 	}
-	defer func() { _ = os.Remove("/tmp/allowed") }()
+	defer func() { _ = os.Remove("/tmp/allowed-file") }()
+	defer func() { _ = os.RemoveAll("/tmp/allowed-dir") }()
+	defer func() { _ = os.Remove("/tmp/writable-file") }()
+	defer func() { _ = os.Remove("/tmp/writable-exe") }()
 	defer func() { _ = os.Remove("/tmp/denied") }()
 
 	pol := &sandbox.Policy{
 		Executables: []string{pluginExe},
-		ReadPaths:   []string{tmpDir, "/tmp/allowed"},
+		ReadPaths:   []string{tmpDir, "/tmp/allowed-file", "/tmp/allowed-dir"},
+		WritePaths:  []string{"/tmp/writable-file", "/tmp/writable-exe"},
 		TimeoutSec:  10,
 		OutputLimit: 4096,
 	}
@@ -118,8 +131,17 @@ func TestLinuxSandboxIntegration(t *testing.T) {
 	}
 
 	// Verify Landlock filesystem enforcement.
-	if !strings.Contains(output.Results, "read_allowed: OK") {
-		t.Errorf("Landlock: expected allowed read to succeed, got: %s", output.Results)
+	if !strings.Contains(output.Results, "read_allowed_file: OK") {
+		t.Errorf("Landlock: expected allowed read file to succeed, got: %s", output.Results)
+	}
+	if !strings.Contains(output.Results, "read_allowed_dir: OK") {
+		t.Errorf("Landlock: expected allowed read dir to succeed, got: %s", output.Results)
+	}
+	if !strings.Contains(output.Results, "write_allowed_file: OK") {
+		t.Errorf("Landlock: expected allowed write file to succeed, got: %s", output.Results)
+	}
+	if !strings.Contains(output.Results, "execute_writable: BLOCKED") {
+		t.Errorf("Landlock: expected execution in WritePath to be blocked, got: %s", output.Results)
 	}
 	if !strings.Contains(output.Results, "read_denied: BLOCKED") {
 		t.Errorf("Landlock: expected denied read to be blocked, got: %s", output.Results)
@@ -137,6 +159,8 @@ const pluginSource = `package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -190,14 +214,49 @@ func main() {
 		results = append(results, fmt.Sprintf("setns: %v", err))
 	}
 
-	// 6. Test Landlock: read allowed path.
-	if _, readErr := os.ReadFile("/tmp/allowed"); readErr == nil {
-		results = append(results, "read_allowed: OK")
+	// 6. Test Landlock: read allowed file.
+	if _, readErr := os.ReadFile("/tmp/allowed-file"); readErr == nil {
+		results = append(results, "read_allowed_file: OK")
 	} else {
-		results = append(results, fmt.Sprintf("read_allowed: %v", readErr))
+		results = append(results, fmt.Sprintf("read_allowed_file: %v", readErr))
 	}
 
-	// 7. Test Landlock: read denied path.
+	// 7. Test Landlock: read allowed directory.
+	if f, err := os.Open("/tmp/allowed-dir"); err == nil {
+		_, _ = f.Readdirnames(1)
+		f.Close()
+		results = append(results, "read_allowed_dir: OK")
+	} else {
+		results = append(results, fmt.Sprintf("read_allowed_dir: %v", err))
+	}
+
+	// 8. Test Landlock: write allowed file.
+	if writeErr := os.WriteFile("/tmp/writable-file", []byte("test"), 0644); writeErr == nil {
+		results = append(results, "write_allowed_file: OK")
+	} else {
+		results = append(results, fmt.Sprintf("write_allowed_file: %v", writeErr))
+	}
+
+	// 8.5 Test Landlock: execution denied in WritePaths.
+	myExe, _ := os.Executable()
+	myBytes, _ := os.ReadFile(myExe)
+	if err := os.WriteFile("/tmp/writable-exe", myBytes, 0755); err == nil {
+		cmd := exec.Command("/tmp/writable-exe")
+		if err := cmd.Start(); err != nil {
+			if strings.Contains(err.Error(), "permission denied") {
+				results = append(results, "execute_writable: BLOCKED")
+			} else {
+				results = append(results, fmt.Sprintf("execute_writable: %v", err))
+			}
+		} else {
+			_ = cmd.Process.Kill()
+			results = append(results, "execute_writable: ACCESSIBLE")
+		}
+	} else {
+		results = append(results, fmt.Sprintf("write_exe: %v", err))
+	}
+
+	// 9. Test Landlock: read denied path.
 	if _, readErr := os.ReadFile("/tmp/denied"); readErr != nil {
 		results = append(results, "read_denied: BLOCKED")
 	} else {
