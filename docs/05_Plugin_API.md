@@ -668,7 +668,7 @@ V1 implements enforcement at three levels:
 #### Landlock Filesystem Enforcement
 
 - Plugin's declared `ReadPaths` → Landlock `RODirs` / `ROFiles` rules.
-- Plugin's declared `WritePaths` → Landlock `RWDirs` rules (Restore/Storage only).
+- Plugin's declared `WritePaths` → Landlock `RWDirs` rules (Restore/Storage only). **Note:** This explicitly does NOT grant `EXECUTE` permissions.
 - Plugin's own directory → read-only access.
 - Everything else → kernel-denied. Not application-level path string matching.
 - Symlinks, traversal, and path normalization are handled by the kernel after Landlock rules are applied. Landlock operates on inodes, not string paths.

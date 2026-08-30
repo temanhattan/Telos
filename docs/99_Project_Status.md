@@ -1,7 +1,7 @@
 # Telos — Project Status
 
 > **Status:** Active
-> **Last Updated:** 2026-08-29 (Repository Audit)
+> **Last Updated:** 2026-08-30 (WSL2 Integration Tests)
 > **Author:** AI Engineering Review (Antigravity)
 > **Audience:** Project maintainers, future contributors, AI sessions
 > **Purpose:** Engineering dashboard — understand exactly where the project stands
@@ -34,7 +34,7 @@ The Telos project has completed **extensive, production-grade documentation**, i
 ### What exists
 
 | Category | State |
-|----------|-------|
+| ---------- | ------- |
 | **Design documentation** | Comprehensive. Six canonical documents (~315,000 bytes) covering vision, requirements, architecture, threat model, data model, and plugin API. One onboarding context document. Eleven ADR files (three populated: ADR-0009 Configuration Manager, ADR-0010 Crypto Envelope, ADR-0011 Plugin Execution Isolation). |
 | **Configuration Manager (S17)** | Fully implemented: 5-tier merge, schema validation, business validation, source attribution, deep-copy immutability, plugin config passthrough, bulk error reporting. Tested. |
 | **Logging & Audit (S16)** | Partially implemented: zerolog wrapper with structured JSON output, level mapping, component tagging, correlation ID context, and a custom `audit` severity. Tested. |
@@ -66,7 +66,7 @@ The roadmap defined in `08_PROJECT_CONTEXT.md` §10 outlines four phases. Below 
 ### Phase 1 — Foundation
 
 | Milestone | Status | Notes |
-|-----------|--------|-------|
+| ----------- | -------- | ------- |
 | Configuration Manager (S17) — full implementation | ✅ Done | 10 source files, 1 ADR, 6 unit test cases. |
 | Logging & Audit (S16) — core implementation | 🟡 Partial | Logger wrapper exists; audit-level logging works. Missing: file output, log rotation, append-only guarantees, audit trail format. |
 | Project scaffolding (module, directories) | ✅ Done | `go.mod`, package layout, empty placeholder dirs. |
@@ -77,7 +77,7 @@ The roadmap defined in `08_PROJECT_CONTEXT.md` §10 outlines four phases. Below 
 ### Phase 2 — Core Pipeline
 
 | Milestone | Status |
-|-----------|--------|
+| ----------- | -------- |
 | Discovery Engine (S3) | ❌ Not started |
 | Manifest (S4) | ❌ Not started |
 | Classifier (S5) | ❌ Not started |
@@ -92,7 +92,7 @@ The roadmap defined in `08_PROJECT_CONTEXT.md` §10 outlines four phases. Below 
 ### Phase 3 — Intelligence & Automation
 
 | Milestone | Status |
-|-----------|--------|
+| ----------- | -------- |
 | AI Advisory Layer (S13) | ❌ Not started |
 | Diff Engine (S14) | ❌ Not started |
 | Scheduler (S15) | ❌ Not started |
@@ -100,7 +100,7 @@ The roadmap defined in `08_PROJECT_CONTEXT.md` §10 outlines four phases. Below 
 ### Phase 4 — Community & Ecosystem
 
 | Milestone | Status |
-|-----------|--------|
+| ----------- | -------- |
 | Plugin SDK & developer docs | ❌ Not started |
 | Plugin registry | ❌ Not started |
 | Community plugin support | ❌ Not started |
@@ -112,7 +112,7 @@ The roadmap defined in `08_PROJECT_CONTEXT.md` §10 outlines four phases. Below 
 ### Canonical Documents
 
 | Document | File | Size | Status | Quality |
-|----------|------|------|--------|---------|
+| ---------- | ------ | ------ | -------- | --------- |
 | Vision | `00_Vision.md` | 26,749 B | ✅ Complete | Excellent. Establishes all principles and philosophy. |
 | Requirements | `01_Requirements.md` | 50,480 B | ✅ Complete | Excellent. FR-1 through FR-14, NFR-1 through NFR-8, DR, EIR. |
 | Architecture | `02_Architecture.md` | 60,399 B | ✅ Complete | Excellent. All 17 subsystems defined with boundaries, dependencies, data flows, mermaid diagrams. |
@@ -128,6 +128,7 @@ The roadmap defined in `08_PROJECT_CONTEXT.md` §10 outlines four phases. Below 
 The six core design documents are exceptionally thorough — collectively ~313 KB of specification before a single line of pipeline code exists. This is a significant strength: the architecture, security model, and data model are well-defined and internally consistent.
 
 **Gaps:**
+
 - `06_Coding_Standards.md` is empty — no Go style guide, naming conventions, or error handling patterns documented.
 - `07_Roadmap.md` is empty — no formal timeline or phasing beyond what's described in `08_PROJECT_CONTEXT.md` §10.
 - The docs do not have a `README.md` (the root `README.md` serves this purpose but is separate from the `docs/` folder).
@@ -141,7 +142,7 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 ### Implemented
 
 | ID | Subsystem | Package | Files | Lines | Tests | Test Coverage |
-|----|-----------|---------|-------|-------|-------|--------------|
+| ---- | ----------- | --------- | ------- | ------- | ------- | -------------- |
 | **S17** | Configuration Manager | `internal/config` | 10 | ~558 | 6 test cases in `loader_test.go` (260 lines) | Moderate — covers merge, strict decoding, plugin keys, validation accumulation, immutability, nested merge. Missing: env_mapper tests, business_validation edge cases, error type tests. |
 | **S12** | Plugin Host | `internal/plugin` | source + sandbox + test | — | 4+ | Core registration, subprocess protocol. Linux seccomp structural tests pass. Runtime Linux integration tests exist but are skipped in unprivileged CI environments. Trust verification is completely unimplemented. |
 | **S16** | Logging & Audit | `internal/logger` | 1 | 120 | 5 test cases in `log_test.go` (123 lines) | Moderate — covers level creation, component tagging, context correlation, log levels, audit severity, JSON output. Missing: nil writer edge case, concurrent usage. |
@@ -155,7 +156,7 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 ### Not Started
 
 | ID | Subsystem | Planned Package | Blocked By |
-|----|-----------|----------------|------------|
+| ---- | ----------- | ---------------- | ------------ |
 | S1 | CLI Shell | `cmd/telos` or `internal/cli` | S2 (Orchestrator) |
 | S2 | Orchestrator | `internal/core` | S3, S6, S7, S9, S10, S16, S17 (leaf deps done) |
 | S3 | Discovery Engine | `internal/core` | S12 (Plugin Host) |
@@ -167,7 +168,7 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 | S9 | Crypto Engine | `internal/crypto` | Cryptographic primitives and authenticated envelope implemented. GPG signing and integration with capture/storage/restore remain. |
 | S10 | Restore Engine | `internal/core` | S2, S9 |
 | S11 | Verification Engine | `internal/core` | S3, S14 |
-| S12 | Plugin Host | `internal/plugin` | S17 (done), data model types | 
+| S12 | Plugin Host | `internal/plugin` | S17 (done), data model types |
 | S13 | AI Advisory Layer | `internal/core` | S4, S5 |
 | S14 | Diff Engine | `internal/core` | S4 |
 | S15 | Scheduler | `internal/core` | S2 |
@@ -177,7 +178,7 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 ## 5. ADR Status
 
 | ADR | Title | File | Status |
-|-----|-------|------|--------|
+| ----- | ------- | ------ | -------- |
 | ADR-0001 | Offline-First | `ADRs/ADR-0001-Offline-First.md` | ❌ **Empty** — decision recorded in Vision but not formally documented as ADR |
 | ADR-0002 | Plugin Architecture | `ADRs/ADR-0002-Plugin-Architecture.md` | ❌ **Empty** — decision recorded in Architecture but not formally documented as ADR |
 | ADR-0003 | Fresh-OS Restore | `ADRs/ADR-0003-Fresh-OS-Restore.md` | ❌ **Empty** |
@@ -199,19 +200,79 @@ The six core design documents are exceptionally thorough — collectively ~313 K
 ## 5.5. Security & Workstream A Status
 
 ### Workstream A (V1 Sandbox Remediation)
-The V1 Linux sandbox is **implemented in code**, providing OS-level isolation via:
-- Landlock (filesystem rules)
-- Seccomp-BPF (denylist for `mount`, `ptrace`, `clone3`, `unshare`, etc.)
-- Namespaces (PID and Network)
-- Resource limits (prlimit for memory, processes, file size)
-- `PR_SET_NO_NEW_PRIVS` enforcement
-- Output limits and timeouts
 
-**Verification state:** 
-Linux seccomp rules are statically verified by tests (`seccomp_linux_test.go`). However, actual runtime sandbox enforcement (`sandbox_integration_test.go`) is currently **skipped in CI** because the GitHub Actions runner lacks the necessary capabilities (`EPERM` when trying to use `CLONE_NEWPID` and `CLONE_NEWNET`). Cross-platform fallbacks are not implemented.
+The V1 Linux sandbox provides OS-level isolation. Below is the verified status of its mechanisms:
+
+- **Landlock (filesystem rules):** IMPLEMENTED + RUNTIME VERIFIED
+- **Seccomp-BPF (denylist):** IMPLEMENTED + RUNTIME VERIFIED
+- **Namespaces (PID and Network):** IMPLEMENTED + RUNTIME VERIFIED
+- **`PR_SET_NO_NEW_PRIVS`:** IMPLEMENTED + RUNTIME VERIFIED
+- **Resource limits (prlimit):** IMPLEMENTED + STRUCTURALLY VERIFIED
+- **Output limits and timeouts:** IMPLEMENTED + STRUCTURALLY VERIFIED
+- **Path normalization/containment:** IMPLEMENTED + STRUCTURALLY VERIFIED
+- **Executable confinement:** IMPLEMENTED + RUNTIME VERIFIED
+- **Plugin-directory default read access:** IMPLEMENTED + STRUCTURALLY VERIFIED
+
+### Linux Runtime Verification Evidence
+
+The project has now had actual Linux runtime testing.
+**Environment:** WSL2 Ubuntu 26.04.1 LTS / Linux kernel 6.18.33.2-microsoft-standard-WSL2, x86_64.
+**Execution Context:** Test executed as `root` because the normal WSL user lacks the required namespace capability (`CLONE_NEWPID` and `CLONE_NEWNET`).
+The kernel was also directly verified to report Landlock ABI 7.
+*Note: This specific successful execution does NOT imply validation across all Linux distributions, kernels, container runtimes, or CI environments.*
+
+**Integration Test Results (`sandbox_integration_test.go`):**
+The sandbox integration test successfully demonstrated:
+
+- `clone3` → `ENOSYS`
+- `clone(CLONE_NEWUSER)` → `EPERM`
+- `mount` → `EPERM`
+- `unshare` → `EPERM`
+- `setns` → `EPERM`
+- allowed regular-file read → succeeds
+- allowed directory read → succeeds
+- allowed regular-file write → succeeds
+- execution through WritePath → blocked
+- unauthorized read → blocked
+
+### CI Environment Limitations
+
+The GitHub-hosted Ubuntu runner cannot currently execute the namespace-dependent sandbox integration test because the required namespace creation returns `EPERM` for its normal runner environment.
+The CI test uses a precise capability probe and is capability-gated to skip if `EPERM` is returned.
+**Note:** This is a CI environment limitation, NOT a sandbox failure, and NOT a reason to weaken the production sandbox. The GitHub Actions CI validates unit tests, race detection, linting, builds, and structural tests, but cannot execute the Linux runtime sandbox integration test.
+
+### WritePaths vs Executables (Verified Semantics)
+
+The V1 model enforces an important security invariant: **WritePaths MUST NOT implicitly grant EXECUTE.**
+
+- `ReadPaths` → read permissions
+- `Executables` → explicit execute permission
+- `WritePaths` → write/data-manipulation permissions, but NOT EXECUTE
+This is a verified runtime security property, proven by the integration test which explicitly asserts `write_allowed_file` is OK and `execute_writable` is BLOCKED.
+
+### Historical Security Findings
+
+The following issues were discovered during implementation and runtime validation, and are now FIXED:
+
+- **Landlock Access-Mask Bug:** The previous implementation incorrectly used manually constructed numeric masks (e.g., a `roAccess` mask that was not read-only, mapping 0x10 to EXECUTE). This was exposed during real Linux runtime testing when applying a rule to a regular file produced `EINVAL`. It was corrected to use explicit named Landlock access constants and correctly distinguish applicable rights for regular files vs directories.
+- **Seccomp Flaws:** A denylist `Jf:1` cascade bug and invalid clone3 argument inspection were fixed. Currently, clone3 is unconditionally denied with `ENOSYS`, and namespace creation variants of clone are denied with `EPERM`.
+- **Path Security:** Fixes were made for absolute/relative paths, symlink escapes, and the `IsSubpath` check.
 
 ### Trust Phase
-Trust verification is **NOT implemented**. Although the documentation describes signature verification, trusted key handling, TOFU (Trust On First Use), official/community plugin verification, and package integrity verification, none of this exists in the codebase. The `Signature` field is parsed from the manifest but no verification occurs.
+
+Trust verification is **NOT IMPLEMENTED**.
+The current implementation DOES NOT provide the documented Trust Phase. The following remain completely unimplemented:
+
+- digital signature verification
+- package signature validation
+- package integrity verification
+- trusted key management
+- official plugin trust classification
+- community plugin trust classification
+- TOFU approval
+- approval persistence
+- update trust semantics
+- signature/key rotation handling
 
 ---
 
@@ -220,15 +281,15 @@ Trust verification is **NOT implemented**. Although the documentation describes 
 ### Unit Tests
 
 | Package | Test File | Test Count | Passing | Notes |
-|---------|-----------|------------|---------|-------|
+| --------- | ----------- | ------------ | --------- | ------- |
 | `internal/config` | `loader_test.go` | 6 | ✅ Verified passing | Tests: full merge pipeline, strict decoding rejection, plugin key acceptance, validation accumulation, profile immutability, nested merge. |
 | `internal/logger` | `log_test.go` | 6 | ✅ Verified passing | Tests: level creation, component tagging, context correlation, log levels, audit severity, JSON output. |
 | `internal/model` | `entities_test.go` | 2 | ✅ Verified passing | Tests: manifest discovery section retention, archive identity and storage field retention. |
-| `internal/plugin` | `host_test.go`, sandbox tests | 4+ | ✅ 2 pass, 2 skip | Tests: discover registers valid and skips invalid. Linux seccomp structural tests verify BPF programs pass. Runtime integration test is skipped in CI (EPERM on CLONE_NEWPID/NEWNET). Windows invoke tests skipped. |
+| `internal/plugin` | `host_test.go`, sandbox tests | 4+ | ✅ 2 pass, 2 skip | Tests: discover registers valid and skips invalid. Linux seccomp structural tests verify BPF programs pass. Runtime integration test is capability-gated in CI (EPERM on CLONE_NEWPID/NEWNET) but verified in WSL2. Windows invoke tests skipped. |
 
 ### Integration Tests
 
-None.
+- `sandbox_integration_test.go` (Linux Sandbox) — verified in WSL2 Ubuntu environment; capability-gated and skipped in GitHub-hosted CI due to `EPERM` on namespace creation.
 
 ### End-to-End Tests
 
@@ -242,14 +303,14 @@ None.
 
 - No test helpers, fixtures, or shared test utilities.
 - CI/CD pipeline configured: `.github/workflows/ci.yml` with test (ubuntu + windows, race detector on Linux), lint (golangci-lint v2), and build jobs.
-- **Note:** Linux runtime sandbox integration tests are currently skipped in CI due to missing unprivileged user namespace capabilities (`EPERM` on `CLONE_NEWPID` / `CLONE_NEWNET`).
+- **Note:** Linux runtime sandbox integration tests are capability-gated and currently skipped in CI due to missing unprivileged user namespace capabilities (`EPERM` on `CLONE_NEWPID` / `CLONE_NEWNET`).
 - No test coverage reporting.
 - Linting configured: `.golangci.yml` with gosec, govet, staticcheck, revive, gocritic, and 8 additional linters.
 
 ### Missing Test Coverage
 
 | Area | What's Missing |
-|------|---------------|
+| ------ | --------------- |
 | `internal/config/env_mapper.go` | No dedicated unit tests for environment variable resolution |
 | `internal/config/business_validation.go` | No tests for empty plugin dir warning or auto-approve warning |
 | `internal/config/errors.go` | No tests for `ValidationError.Error()`, `ConfigError.Error()`, `HasErrors()` |
@@ -263,7 +324,7 @@ None.
 ### Direct Dependencies
 
 | Module | Version | Purpose | Used By |
-|--------|---------|---------|---------|
+| -------- | --------- | --------- | --------- |
 | `github.com/rs/zerolog` | v1.35.1 | Structured JSON logging | `internal/logger` |
 | `golang.org/x/crypto` | v0.55.0 | Argon2id key derivation | `internal/crypto` |
 | `gopkg.in/yaml.v3` | v3.0.1 | YAML parsing with strict mode | `internal/config` |
@@ -271,7 +332,7 @@ None.
 ### Indirect Dependencies
 
 | Module | Version | Source |
-|--------|---------|--------|
+| -------- | --------- | -------- |
 | `github.com/mattn/go-colorable` | v0.1.14 | zerolog transitive |
 | `github.com/mattn/go-isatty` | v0.0.20 | zerolog transitive |
 | `golang.org/x/sys` | v0.47.0 | x/crypto + zerolog transitive |
@@ -281,6 +342,7 @@ None.
 The dependency footprint is minimal and intentional — three direct dependencies, all well-maintained and widely used. This aligns with the offline-first, minimal-dependency philosophy.
 
 **Future dependencies to anticipate:**
+
 - CLI: a command framework (`cobra`, `urfave/cli`, or custom).
 - Archive format: `archive/tar`, `compress/gzip` (stdlib), or a custom format.
 - Plugin execution: `os/exec` (stdlib).
@@ -293,7 +355,7 @@ The dependency footprint is minimal and intentional — three direct dependencie
 ### Current Debt Items
 
 | ID | Severity | Location | Issue | Resolution |
-|----|----------|----------|-------|------------|
+| ---- | ---------- | ---------- | ------- | ------------ |
 | **TD-1** | Medium | `cmd/telos/main.go` | Placeholder `SomeSubsystem` in `core/` package. Not an architectural subsystem. Mixes demo code with production layout. | Remove `core/some_subsystem.go` and refactor `main.go` when CLI Shell (S1) is implemented. |
 | **TD-2** | Low | `internal/config/env_mapper.go` | Only supports 2 levels of nesting for env vars (e.g., `TELOS_LOGGING_LEVEL`). Cannot map deeply nested plugin config from env vars. | Acceptable for V1; document the limitation. |
 | **TD-3** | Low | `internal/logger/log.go:89` | `context.Value("correlation_id")` uses a bare string key instead of an unexported key type. Violates Go context best practices; risks collisions. | Define a private context key type: `type contextKey struct{}; var correlationIDKey = contextKey{}`. |
@@ -308,7 +370,7 @@ The dependency footprint is minimal and intentional — three direct dependencie
 ## 9. Known Risks
 
 | ID | Risk | Impact | Likelihood | Mitigation |
-|----|------|--------|-----------|------------|
+| ---- | ------ | -------- | ----------- | ------------ |
 | **R-1** | **Architecture-implementation gap.** 315 KB of design docs with ~700 lines of implementation code. Risk of drift as implementation progresses. | High | Medium | Treat docs as source of truth. Update docs when implementation forces design changes. Use ADRs for deviations. |
 | **R-2** | **Plugin sandbox enforcement.** V1 implements OS-level isolation on Linux (Landlock, seccomp, namespaces). Non-Linux platforms have degraded enforcement. Full cross-platform sandbox is V2 scope. | Critical | Medium | V1 Linux sandbox implemented. Residual risk depends on kernel integrity, correct configuration, and implementation correctness. **Note: CI cannot currently verify Linux runtime enforcement.** Independent security review required for definitive risk rating. |
 | **R-3** | **Crypto implementation correctness.** The architecture specifies AES-256-GCM, Argon2, SHA-256, and GPG signing. Implementation must use vetted libraries and correct patterns (Security Assumption SA-9). | Critical | Low | Use `golang.org/x/crypto` for Argon2, stdlib `crypto/aes` + `crypto/cipher` for AES-256-GCM, stdlib `crypto/sha256` for hashing. Do not roll custom crypto. |
@@ -374,7 +436,7 @@ The following sequence respects the dependency graph defined in `02_Architecture
 ### Immediate (Foundation Completion)
 
 | Priority | Task | Subsystem | Rationale |
-|----------|------|-----------|-----------|
+| ---------- | ------ | ----------- | ----------- |
 | 1 | **Define Go types for core data model entities** | S4 | Every subsystem depends on the shared vocabulary: `EnvironmentManifest`, `BackupPlan`, `RestorePlan`, `MachineProfile`, `DiscoveryResult`, etc. These structs must exist before any pipeline code can be written. |
 | 2 | **Implement Crypto Engine (S9)** | S9 | Leaf dependency (depends on nothing internal). Required by Capture Engine, Storage Backend, and Restore Engine. AES-256-GCM encryption, SHA-256 hashing, Argon2 KDF. |
 | 3 | **Implement CLI Shell framework (S1)** | S1 | Required for any user-facing functionality. Choose and integrate a command framework. Define top-level commands: `backup`, `restore`, `discover`, `verify`, `diff`, `config show`. |
@@ -384,7 +446,7 @@ The following sequence respects the dependency graph defined in `02_Architecture
 ### Near-Term (Core Pipeline — Phase 2)
 
 | Priority | Task | Subsystem |
-|----------|------|-----------|
+| ---------- | ------ | ----------- |
 | 6 | Implement Manifest construction and immutability | S4 |
 | 7 | Implement Classifier with deterministic rules | S5 |
 | 8 | Implement Planner (backup plan generation) | S6 |
@@ -397,7 +459,7 @@ The following sequence respects the dependency graph defined in `02_Architecture
 ### Debt Paydown (Parallel)
 
 | Task | Priority |
-|------|----------|
+| ------ | ---------- |
 | Backfill ADRs 0001–0008 from canonical docs | Low |
 | Write `06_Coding_Standards.md` | Medium |
 | Write `07_Roadmap.md` | Low |
@@ -407,4 +469,4 @@ The following sequence respects the dependency graph defined in `02_Architecture
 
 ---
 
-> **This document is a snapshot.** It reflects the state of the project as of 2026-08-29. Update it after each significant implementation milestone.
+> **This document is a snapshot.** It reflects the state of the project as of 2026-08-30. Update it after each significant implementation milestone.
