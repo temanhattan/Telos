@@ -158,6 +158,9 @@ func (h *Host) load(dir string) (Plugin, error) {
 	if mf.Type == "ClassificationRule" && (mf.Permissions.Network || len(mf.Permissions.Subprocess) > 0 || len(mf.Permissions.FilesystemRead) > 0 || len(mf.Permissions.FilesystemWrite) > 0) {
 		return Plugin{}, errors.New("classification plugins cannot request permissions")
 	}
+	if mf.Permissions.Network && (mf.Type == "Discovery" || mf.Type == "Capture") {
+		return Plugin{}, fmt.Errorf("plugin %s of type %s: network permission is not allowed", mf.ID, mf.Type)
+	}
 	readPaths, err := sandbox.NormalizeManifestPaths(dir, mf.Permissions.FilesystemRead)
 	if err != nil {
 		return Plugin{}, fmt.Errorf("invalid filesystem_read paths: %w", err)
