@@ -2,9 +2,11 @@ package plugin
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -242,5 +244,211 @@ func TestBuildPolicyDefaultPluginDirAccess(t *testing.T) {
 	if policy.ReadPaths[0] != "/opt/telos/plugins/minimal" {
 		t.Errorf("expected ReadPaths[0] to be plugin directory, got %q",
 			policy.ReadPaths[0])
+	}
+}
+
+func TestNetworkPermissionValidation(t *testing.T) {
+	tests := []struct {
+		name               string
+		pluginID           string
+		pluginType         string
+		network            bool
+		wantReject         bool
+		wantErrSubstrings  []string
+		wantNetworkAllowed bool
+	}{
+		{
+			name:               "Discovery with network rejected",
+			pluginID:           "io.telos.discovery.net",
+			pluginType:         "Discovery",
+			network:            true,
+			wantReject:         true,
+			wantErrSubstrings:  []string{"io.telos.discovery.net", "Discovery", "network permission is not allowed"},
+			wantNetworkAllowed: false,
+		},
+		{
+			name:               "Capture with network rejected",
+			pluginID:           "io.telos.capture.net",
+			pluginType:         "Capture",
+			network:            true,
+			wantReject:         true,
+			wantErrSubstrings:  []string{"io.telos.capture.net", "Capture", "network permission is not allowed"},
+			wantNetworkAllowed: false,
+		},
+		{
+			name:               "ClassificationRule with network rejected by existing check",
+			pluginID:           "io.telos.classification.net",
+			pluginType:         "ClassificationRule",
+			network:            true,
+			wantReject:         true,
+			wantErrSubstrings:  []string{"classification plugins cannot request permissions"},
+			wantNetworkAllowed: false,
+		},
+		{
+			name:               "Storage with network accepted",
+			pluginID:           "io.telos.storage.net",
+			pluginType:         "Storage",
+			network:            true,
+			wantReject:         false,
+			wantNetworkAllowed: true,
+		},
+		{
+			name:               "Restore with network accepted",
+			pluginID:           "io.telos.restore.net",
+			pluginType:         "Restore",
+			network:            true,
+			wantReject:         false,
+			wantNetworkAllowed: true,
+		},
+		{
+			name:               "Discovery without network accepted",
+			pluginID:           "io.telos.discovery.offline",
+			pluginType:         "Discovery",
+			network:            false,
+			wantReject:         false,
+			wantNetworkAllowed: false,
+		},
+		{
+			name:               "Capture without network accepted",
+			pluginID:           "io.telos.capture.offline",
+			pluginType:         "Capture",
+			network:            false,
+			wantReject:         false,
+			wantNetworkAllowed: false,
+		},
+		{
+			name:               "Unknown plugin type with network rejected by existing check",
+			pluginID:           "io.telos.unknown.net",
+			pluginType:         "UnknownType",
+			network:            true,
+			wantReject:         true,
+			wantErrSubstrings:  []string{`unknown plugin type "UnknownType"`},
+			wantNetworkAllowed: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+
+			netStr := "false"
+			if tt.network {
+				netStr = "true"
+			}
+			manifest := fmt.Sprintf(`id: %s
+name: Test
+version: 1.0.0
+interface_version: 1
+type: %s
+author: test
+permissions:
+  network: %s
+executable: plugin`, tt.pluginID, tt.pluginType, netStr)
+
+			writePlugin(t, root, "testplugin", manifest)
+
+			// Sibling plugin to verify sibling isolation
+			siblingID := "io.telos.sibling.valid"
+			siblingManifest := fmt.Sprintf(`id: %s
+name: Sibling
+version: 1.0.0
+interface_version: 1
+type: Discovery
+author: test
+executable: plugin`, siblingID)
+			writePlugin(t, root, "siblingplugin", siblingManifest)
+
+			h := New(Options{PluginDirs: []string{root}})
+			failures := h.Discover()
+
+			if tt.wantReject {
+				if len(failures) != 1 {
+					t.Fatalf("expected 1 failure, got %d: %v", len(failures), failures)
+				}
+				for _, sub := range tt.wantErrSubstrings {
+					if !strings.Contains(failures[0].Reason, sub) {
+						t.Errorf("expected failure reason to contain %q, got %q", sub, failures[0].Reason)
+					}
+				}
+
+				// Verify rejected plugin is NOT registered, sibling IS registered
+				plugins := h.Plugins()
+				if len(plugins) != 1 {
+					t.Fatalf("expected exactly 1 registered plugin (sibling), got %d: %v", len(plugins), plugins)
+				}
+				if plugins[0].ID != siblingID {
+					t.Errorf("expected registered plugin to be sibling %q, got %q", siblingID, plugins[0].ID)
+				}
+			} else {
+				if len(failures) != 0 {
+					t.Fatalf("expected 0 failures, got %d: %v", len(failures), failures)
+				}
+
+				plugins := h.Plugins()
+				if len(plugins) != 2 {
+					t.Fatalf("expected 2 registered plugins, got %d: %v", len(plugins), plugins)
+				}
+
+				var found bool
+				for _, p := range plugins {
+					if p.ID == tt.pluginID {
+						found = true
+						if p.Manifest.NetworkAllowed != tt.wantNetworkAllowed {
+							t.Errorf("expected NetworkAllowed=%v, got %v", tt.wantNetworkAllowed, p.Manifest.NetworkAllowed)
+						}
+					}
+				}
+				if !found {
+					t.Errorf("plugin %q was not registered", tt.pluginID)
+				}
+			}
+
+			// Invariant N1 check: no registered Discovery or Capture plugin has network permission.
+			for _, p := range h.Plugins() {
+				if (p.Manifest.Type == "Discovery" || p.Manifest.Type == "Capture") && p.Manifest.NetworkAllowed {
+					t.Errorf("INVARIANT N1 VIOLATION: registered %s plugin %q has network permission", p.Manifest.Type, p.ID)
+				}
+			}
+		})
+	}
+}
+
+func TestInvariantN1NoDiscoveryOrCaptureHasNetwork(t *testing.T) {
+	root := t.TempDir()
+
+	writePlugin(t, root, "discovery-net", `id: io.telos.discovery.malicious
+name: DiscoveryNet
+version: 1.0.0
+interface_version: 1
+type: Discovery
+author: test
+permissions:
+  network: true
+executable: plugin`)
+
+	writePlugin(t, root, "capture-net", `id: io.telos.capture.malicious
+name: CaptureNet
+version: 1.0.0
+interface_version: 1
+type: Capture
+author: test
+permissions:
+  network: true
+executable: plugin`)
+
+	h := New(Options{PluginDirs: []string{root}})
+	failures := h.Discover()
+
+	if len(failures) != 2 {
+		t.Fatalf("expected 2 failures, got %d: %v", len(failures), failures)
+	}
+
+	for _, p := range h.Plugins() {
+		if (p.Manifest.Type == "Discovery" || p.Manifest.Type == "Capture") && p.Manifest.NetworkAllowed {
+			t.Fatalf("INVARIANT N1 VIOLATION: registered %s plugin %q has network permission", p.Manifest.Type, p.ID)
+		}
+	}
+	if len(h.Plugins()) != 0 {
+		t.Fatalf("expected 0 registered plugins, got %d: %v", len(h.Plugins()), h.Plugins())
 	}
 }
