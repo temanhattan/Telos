@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -920,4 +921,152 @@ func main() {
 	if string(resp) != `{"status":"success"}` {
 		t.Errorf("unexpected response: %s", string(resp))
 	}
+}
+
+func TestPolicySliceAliasingSpareCapacity(t *testing.T) {
+	// Construct manifest slices with spare capacity (len < cap) and sentinels in spare slots
+	const readSentinel = "SENTINEL_READ_SPARE"
+	const writeSentinel = "SENTINEL_WRITE_SPARE"
+
+	readBacking := make([]string, 4)
+	readBacking[0] = "/read/path/1"
+	readBacking[1] = "/read/path/2"
+	readBacking[2] = readSentinel
+	readBacking[3] = readSentinel
+	manifestRead := readBacking[:2] // len=2, cap=4
+
+	writeBacking := make([]string, 4)
+	writeBacking[0] = "/write/path/1"
+	writeBacking[1] = "/write/path/2"
+	writeBacking[2] = writeSentinel
+	writeBacking[3] = writeSentinel
+	manifestWrite := writeBacking[:2] // len=2, cap=4
+
+	const origDir = "/opt/telos/plugins/test"
+	const origExe = "/opt/telos/plugins/test/plugin"
+
+	p := Plugin{
+		ID:         "io.telos.test",
+		Dir:        origDir,
+		Executable: origExe,
+		Manifest: model.PluginManifest{
+			FilesystemRead:  manifestRead,
+			FilesystemWrite: manifestWrite,
+			NetworkAllowed:  true,
+		},
+	}
+
+	h := New(Options{})
+	policy := h.buildPolicy(&p)
+
+	// Mutate every policy slice by index-assigning
+	policy.ReadPaths[0] = "/mutated/read/path"
+	policy.WritePaths[0] = "/mutated/write/path"
+	policy.Executables[0] = "/mutated/executable"
+
+	// Append to every policy slice
+	policy.ReadPaths = append(policy.ReadPaths, "/appended/read/path")
+	policy.WritePaths = append(policy.WritePaths, "/appended/write/path")
+	policy.Executables = append(policy.Executables, "/appended/executable")
+
+	// Invariant I1: Mutating or appending to any returned Policy slice never changes Plugin or Manifest state.
+	// Assert manifest FilesystemRead[:cap] is unchanged
+	fullRead := p.Manifest.FilesystemRead[:4]
+	if fullRead[0] != "/read/path/1" || fullRead[1] != "/read/path/2" ||
+		fullRead[2] != readSentinel || fullRead[3] != readSentinel {
+		t.Errorf("INVARIANT I1 VIOLATION: manifest FilesystemRead[:cap] was modified: %v", fullRead)
+	}
+
+	// Assert manifest FilesystemWrite[:cap] is unchanged
+	fullWrite := p.Manifest.FilesystemWrite[:4]
+	if fullWrite[0] != "/write/path/1" || fullWrite[1] != "/write/path/2" ||
+		fullWrite[2] != writeSentinel || fullWrite[3] != writeSentinel {
+		t.Errorf("INVARIANT I1 VIOLATION: manifest FilesystemWrite[:cap] was modified: %v", fullWrite)
+	}
+
+	// Assert plugin struct fields unchanged
+	if p.Dir != origDir {
+		t.Errorf("INVARIANT I1 VIOLATION: plugin Dir was modified: %s", p.Dir)
+	}
+	if p.Executable != origExe {
+		t.Errorf("INVARIANT I1 VIOLATION: plugin Executable was modified: %s", p.Executable)
+	}
+}
+
+func TestTwoBuildPolicyCallsShareNoBackingArrays(t *testing.T) {
+	p := Plugin{
+		ID:         "io.telos.test",
+		Dir:        "/opt/telos/plugins/test",
+		Executable: "/opt/telos/plugins/test/plugin",
+		Manifest: model.PluginManifest{
+			FilesystemRead:  []string{"/read/1", "/read/2"},
+			FilesystemWrite: []string{"/write/1", "/write/2"},
+		},
+	}
+	h := New(Options{})
+	pol1 := h.buildPolicy(&p)
+	pol2 := h.buildPolicy(&p)
+
+	// Primary proof: behavioral isolation (mutating pol1 must not affect pol2)
+	pol1.ReadPaths[0] = "/mutated/read"
+	if pol2.ReadPaths[0] == "/mutated/read" {
+		t.Errorf("pol2.ReadPaths shared storage with pol1.ReadPaths")
+	}
+
+	pol1.WritePaths[0] = "/mutated/write"
+	if pol2.WritePaths[0] == "/mutated/write" {
+		t.Errorf("pol2.WritePaths shared storage with pol1.WritePaths")
+	}
+
+	pol1.Executables[0] = "/mutated/exe"
+	if pol2.Executables[0] == "/mutated/exe" {
+		t.Errorf("pol2.Executables shared storage with pol1.Executables")
+	}
+
+	// Address divergence verification
+	if &pol1.ReadPaths[0] == &pol2.ReadPaths[0] {
+		t.Errorf("pol1.ReadPaths and pol2.ReadPaths share backing array pointer")
+	}
+	if &pol1.WritePaths[0] == &pol2.WritePaths[0] {
+		t.Errorf("pol1.WritePaths and pol2.WritePaths share backing array pointer")
+	}
+	if &pol1.Executables[0] == &pol2.Executables[0] {
+		t.Errorf("pol1.Executables and pol2.Executables share backing array pointer")
+	}
+}
+
+func TestConcurrentBuildPolicyUnderRace(t *testing.T) {
+	p := Plugin{
+		ID:         "io.telos.test",
+		Dir:        "/opt/telos/plugins/test",
+		Executable: "/opt/telos/plugins/test/plugin",
+		Manifest: model.PluginManifest{
+			FilesystemRead:  []string{"/read/1", "/read/2"},
+			FilesystemWrite: []string{"/write/1", "/write/2"},
+			NetworkAllowed:  true,
+		},
+	}
+	h := New(Options{})
+
+	const goroutines = 20
+	const iterations = 50
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func(id int) {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				pol := h.buildPolicy(&p)
+				// Each goroutine mutates its own returned policy while others call buildPolicy
+				pol.ReadPaths[0] = fmt.Sprintf("/mutated/read/%d/%d", id, j)
+				pol.ReadPaths = append(pol.ReadPaths, fmt.Sprintf("/appended/read/%d/%d", id, j))
+				pol.WritePaths[0] = fmt.Sprintf("/mutated/write/%d/%d", id, j)
+				pol.WritePaths = append(pol.WritePaths, fmt.Sprintf("/appended/write/%d/%d", id, j))
+				pol.Executables[0] = fmt.Sprintf("/mutated/exe/%d/%d", id, j)
+				pol.Executables = append(pol.Executables, fmt.Sprintf("/appended/exe/%d/%d", id, j))
+			}
+		}(i)
+	}
+	wg.Wait()
 }

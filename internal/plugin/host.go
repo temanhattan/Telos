@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -347,10 +348,15 @@ func (h *Host) InvokeSandboxed(ctx context.Context, id string, request any) (jso
 }
 
 // buildPolicy translates a plugin's manifest permissions into a sandbox Policy.
+// It returns a fresh Policy where every slice is isolated from Plugin and Manifest state.
 func (h *Host) buildPolicy(p *Plugin) *sandbox.Policy {
+	readPaths := make([]string, 0, 1+len(p.Manifest.FilesystemRead))
+	readPaths = append(readPaths, p.Dir)
+	readPaths = append(readPaths, p.Manifest.FilesystemRead...)
+
 	return &sandbox.Policy{
-		ReadPaths:        append([]string{p.Dir}, p.Manifest.FilesystemRead...),
-		WritePaths:       p.Manifest.FilesystemWrite,
+		ReadPaths:        readPaths,
+		WritePaths:       slices.Clone(p.Manifest.FilesystemWrite),
 		Executables:      []string{p.Executable},
 		Network:          p.Manifest.NetworkAllowed,
 		TimeoutSec:       int(h.opts.Timeout.Seconds()),
