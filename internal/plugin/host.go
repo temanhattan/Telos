@@ -27,6 +27,19 @@ import (
 const SupportedInterfaceVersion = 1
 const defaultOutputLimit int64 = 4 << 20
 
+// Default resource limits established by ADR-0012.
+// Defaults live in ONE place, used only by New.
+const (
+	// defaultMemoryBytes is the maximum virtual address space (RLIMIT_AS) per ADR-0012 §3: 512 MB.
+	defaultMemoryBytes int64 = 512 * 1024 * 1024 // 536,870,912 bytes
+
+	// defaultMaxFileSizeBytes is the maximum file size (RLIMIT_FSIZE) per ADR-0012 §3: 10 GB.
+	defaultMaxFileSizeBytes int64 = 10 * 1024 * 1024 * 1024 // 10,737,418,240 bytes
+
+	// defaultMaxProcesses is the process/task limit (RLIMIT_NPROC) per ADR-0012 §1: 0 (disabled).
+	defaultMaxProcesses int = 0
+)
+
 var semver = regexp.MustCompile(`^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$`)
 
 // Options configures a Host. A zero timeout uses five minutes, matching the
@@ -39,6 +52,20 @@ type Options struct {
 	// Sandbox provides OS-level plugin isolation when set. If nil, plugins
 	// run without sandbox enforcement (direct subprocess execution).
 	Sandbox sandbox.Sandbox
+
+	// MemoryBytes is the maximum virtual address space (RLIMIT_AS) in bytes.
+	// 0 or negative defaults to 512 MB per ADR-0012 §3.
+	MemoryBytes int64
+
+	// MaxFileSizeBytes is the maximum file size (RLIMIT_FSIZE) in bytes.
+	// 0 or negative defaults to 10 GB per ADR-0012 §3.
+	MaxFileSizeBytes int64
+
+	// MaxProcesses sets RLIMIT_NPROC as an optional administrative limit. It is
+	// counted per real UID, so it is NOT a per-plugin security boundary. Containment
+	// comes from the sandbox layers, not this limit.
+	// Defaults to 0 (disabled / unconstrained) per ADR-0012 §1.
+	MaxProcesses int
 }
 
 // Plugin is a validated, registered plugin and its package location.
@@ -86,6 +113,8 @@ type Host struct {
 }
 
 // New creates a new Host with the provided options.
+//
+//nolint:gocritic // hugeParam: Options value semantics preserved per public Host API
 func New(opts Options) *Host {
 	if opts.Timeout <= 0 {
 		opts.Timeout = 5 * time.Minute
@@ -95,6 +124,15 @@ func New(opts Options) *Host {
 	}
 	if opts.Logger == nil {
 		opts.Logger = log.New(log.InfoLevel, io.Discard)
+	}
+	if opts.MemoryBytes <= 0 {
+		opts.MemoryBytes = defaultMemoryBytes
+	}
+	if opts.MaxFileSizeBytes <= 0 {
+		opts.MaxFileSizeBytes = defaultMaxFileSizeBytes
+	}
+	if opts.MaxProcesses < 0 {
+		opts.MaxProcesses = defaultMaxProcesses
 	}
 	return &Host{opts: opts, plugins: make(map[string]Plugin)}
 }
@@ -311,11 +349,14 @@ func (h *Host) InvokeSandboxed(ctx context.Context, id string, request any) (jso
 // buildPolicy translates a plugin's manifest permissions into a sandbox Policy.
 func (h *Host) buildPolicy(p *Plugin) *sandbox.Policy {
 	return &sandbox.Policy{
-		ReadPaths:   append([]string{p.Dir}, p.Manifest.FilesystemRead...),
-		WritePaths:  p.Manifest.FilesystemWrite,
-		Executables: []string{p.Executable},
-		Network:     p.Manifest.NetworkAllowed,
-		TimeoutSec:  int(h.opts.Timeout.Seconds()),
-		OutputLimit: h.opts.OutputLimit,
+		ReadPaths:        append([]string{p.Dir}, p.Manifest.FilesystemRead...),
+		WritePaths:       p.Manifest.FilesystemWrite,
+		Executables:      []string{p.Executable},
+		Network:          p.Manifest.NetworkAllowed,
+		TimeoutSec:       int(h.opts.Timeout.Seconds()),
+		OutputLimit:      h.opts.OutputLimit,
+		MemoryBytes:      h.opts.MemoryBytes,
+		MaxProcesses:     h.opts.MaxProcesses,
+		MaxFileSizeBytes: h.opts.MaxFileSizeBytes,
 	}
 }
