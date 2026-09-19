@@ -53,7 +53,7 @@
 | **Capture** | Network | Denied | **Allowed** | No | No | 🔴 SECURITY BUG |
 | **Capture** | Subprocess | Declared | **Ignored** | No | No | 🔴 FUNCTIONAL BUG |
 | **Capture** | FS Write | Staging only | **Denied entirely** | No | No | 🔴 DESIGN-BY-DOC BUG |
-| **Restore** | Network | Denied (default) | Enforced | No | No | ✅ CORRECT |
+| **Restore** | Network | Denied (default) | Permitted if declared | Yes | Yes | ✅ CORRECT |
 | **Restore** | Subprocess | Declared | **Ignored** | No | No | 🔴 FUNCTIONAL BUG |
 | **Storage** | Network | Declared | Enforced | No | No | ✅ CORRECT |
 

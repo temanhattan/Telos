@@ -686,7 +686,7 @@ V1 implements enforcement at three levels:
 #### Network Isolation
 
 - Plugins with `Network=false`: run in a new network namespace with no configured interfaces (only loopback, which is `DOWN`). The kernel enforces — no TCP/UDP connections are possible.
-- Plugins with `Network=true` (Storage plugins only): run in the host network namespace.
+- Plugins with `Network=true` (Storage plugins and authorized Restore plugins): run in the host network namespace.
 - This is not advisory. The kernel enforces network isolation.
 
 #### Process Isolation

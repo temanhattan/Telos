@@ -42,7 +42,7 @@ The audit traced data flow and enforcement mechanisms across the following compo
 | **Capture** | Network | NOT permitted | **Allowed** | No | 🔴 BUG |
 | **Capture** | Subprocess | Declared | **Ignored** | No | 🔴 BUG |
 | **Capture** | FS Write | Staging only | **Denied entirely** | No | 🔴 BUG |
-| **Restore** | Network | Not permitted (default) | Enforced | No | ✅ PASS |
+| **Restore** | Network | Not permitted (default) | Permitted if declared | Yes | ✅ PASS |
 | **Restore** | Subprocess | Declared | **Ignored** | No | 🔴 BUG |
 | **Storage** | Network | Declared | Enforced | No | ✅ PASS |
 

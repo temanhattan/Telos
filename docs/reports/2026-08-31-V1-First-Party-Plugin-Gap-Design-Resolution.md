@@ -45,10 +45,11 @@ This report translates the confirmed findings from the V1 capability audit into 
 | **Discovery** | Denied | Allowed | ALLOWED | No | 🔴 SECURITY GAP (CODE VERIFIED) |
 | **Classification** | Denied | Enforced | DENIED | Yes | ✅ TEST VERIFIED |
 | **Capture** | Denied | Allowed | ALLOWED | No | 🔴 SECURITY GAP (CODE VERIFIED) |
-| **Restore** | Denied (default) | Enforced | DENIED | No | ✅ CODE VERIFIED |
+| **Restore** | Denied (default) | Permitted if declared | ALLOWED if declared | Yes | ✅ POLICY RESOLVED |
 | **Storage** | Declared | Enforced | ALLOWED | No | ✅ CODE VERIFIED |
 
-* **Proposed Safe Solution:** Add the exact validation in `host.go:load()` to return an error if `mf.Permissions.Network` is true for offline-only plugin types.
+* **Note on Restore:** Under normative specifications (`05_Plugin_API.md` §12, `01_Requirements.md` NFR-8.2, C-9), Restore plugins are default-denied network access (`network: false`), but may declare network access when explicitly justified (e.g., package installation from external repositories). `host.go` allows declared `Network: true` for Restore while rejecting Discovery, Classification, and Capture.
+* **Proposed Safe Solution:** Add the exact validation in `host.go:load()` to return an error if `mf.Permissions.Network` is true for offline-only plugin types (Discovery and Capture).
 
 ## 5. Stderr Resource Bound
 
