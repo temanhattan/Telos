@@ -2,7 +2,8 @@
 
 > **Purpose:** Internal onboarding document for AI agents and new contributors
 > **Status:** Active
-> **Last Updated:** 2026-07-01
+> **Last Updated:** 2026-09-19
+> **Last Verified:** 2026-09-19, commit 77c3748
 > **Audience:** AI sessions, developers, and code reviewers working on Telos
 > **Canonical Sources:** [00_Vision.md](00_Vision.md), [01_Requirements.md](01_Requirements.md), [02_Architecture.md](02_Architecture.md), [03_Threat_Model.md](03_Threat_Model.md), [04_Data_Model.md](04_Data_Model.md), [05_Plugin_API.md](05_Plugin_API.md)
 
@@ -154,11 +155,28 @@ Every plugin declares: `name`, `version`, `interface_version`, `plugin_type`, `o
 
 The Plugin Host executes plugins as isolated subprocesses. Communication uses a versioned protocol with JSON-serialized request/response messages over stdin/stdout.
 
-### Execution Model
+### Execution & Sandbox Model
 
-- Each invocation is a fresh subprocess — no persistent connection.
-- Plugins have resource limits: execution timeout, memory ceiling, output size cap.
-- Invalid output (schema violations, extra fields) is rejected. The plugin's response is discarded and the failure is logged.
+Each plugin invocation is a fresh subprocess executing over a versioned JSON-serialized request/response protocol over stdin/stdout with bounded execution deadlines (default 5 minutes).
+
+#### Implemented Today (V1 Linux Sandbox & Host Invariants)
+- **Landlock LSM (ABI v1–v7):** Enforces filesystem isolation on Linux. Restricts access to declared `ReadPaths` (read access) and `WritePaths` (write and creation access, with execution permissions strictly masked out). `Executables` receive explicit execute permissions.
+- **Seccomp-BPF Syscall Filtering:** Installs a BPF syscall filter denying `clone3` with `ENOSYS`, denying namespace creation variants (`CLONE_NEWUSER`, `CLONE_NEWPID`, `CLONE_NEWNET`, etc.) with `EPERM`, and denying `mount`, `unshare`, and `setns` with `EPERM`.
+- **Linux Namespaces:** Creates a private PID namespace (restricting process visibility and enabling clean subtree teardown) and an unshared network namespace with `loopback DOWN` (blocking network access).
+- **Privilege Confinement:** Sets `PR_SET_NO_NEW_PRIVS` to prevent privilege escalation via setuid binaries.
+- **Resource Limits via `HostOptions` (ADR-0012):** Normalized options pass into `sandbox.Policy`:
+  - Memory: 512 MB virtual address space ceiling (`RLIMIT_AS`) default.
+  - File size: 10 GB file creation ceiling (`RLIMIT_FSIZE`) default.
+  - Task count: Process limits via `RLIMIT_NPROC` default to 0 (disabled in V1; true task bounding deferred to V2 cgroups v2).
+- **Offline Network Rejection:** Manifests declaring `permissions.network: true` for `Discovery` and `Capture` plugins are strictly rejected at load time in `host.go:load()`. Restore plugins default to `network: false`, but may request network access where explicitly justified.
+- **Policy Slice Isolation:** `buildPolicy()` allocates fresh slices for `ReadPaths` and `Executables`, and clones `WritePaths` via `slices.Clone`, preventing any slice aliasing or concurrent mutation from affecting the host registry.
+- **Non-Linux Fallback:** On Windows and macOS, executions fall back to standard subprocess invocation without kernel sandboxing, with application-level timeouts and audit log warnings.
+
+#### Planned / Not Yet Implemented
+- **Subprocess Authorization (ADR-0007):** Will validate manifest `subprocess` names (rejecting slashes), resolve host paths via `exec.LookPath`, append resolved binaries to `Policy.Executables`, and automatically grant Landlock read+execute permissions to system library paths (`/lib`, `/lib64`, `/usr/lib`, `/usr/lib64`, `/etc/alternatives`).
+- **Capture Staging Lifecycle (ADR-0013):** Core will allocate cryptographically random temporary directories under `/var/lib/telos/staging/capture-<uuid>` (mode 0700), pass `staging_location` in `CaptureRequest`, append staging paths to `Policy.WritePaths` and `Policy.ReadPaths`, validate that returned artifacts are strictly relative subpaths within staging, and ensure unconditional staging cleanup.
+- **Bounded Stderr on Direct Path:** The direct `Invoke()` path currently uses an unbounded `bytes.Buffer` (which will be replaced with a unified `limitedBuffer`), and a single authoritative stderr limit across host and sandbox will be established.
+- **RLIMIT_AS Amendment:** ADR-0012 will be formally amended to account for Go 64-bit runtime virtual address space reservation requirements (investigation pending; earlier measurements were inconclusive) before adjusting the default memory limit in code, unblocking compiled Go plugins and the APT plugin.
 
 ---
 
@@ -385,7 +403,30 @@ Priority (highest to lowest):
 | [03_Threat_Model.md](03_Threat_Model.md) | Threat landscape, STRIDE analysis, trust boundaries, attack vectors, mitigations | Implementing security-sensitive features |
 | [04_Data_Model.md](04_Data_Model.md) | Entity definitions, field schemas, relationships, lifecycle rules, serialization formats, validation rules | Working with data structures and schemas |
 | [05_Plugin_API.md](05_Plugin_API.md) | Plugin types, identity model, lifecycle, execution model, sandbox/permissions, request/response contracts, dispatch rules, shared types, error handling | Building or modifying plugins |
+| [06_Coding_Standards.md](06_Coding_Standards.md) | Coding standards and conventions *(empty stub)* | Contributing new Go source code |
+| [07_Roadmap.md](07_Roadmap.md) | Project implementation timeline and phases *(empty stub)* | Reviewing milestone planning |
+| [99_Project_Status.md](99_Project_Status.md) | Active engineering status dashboard, test evidence, verified subsystem states, open issues, and next steps | Understanding current implementation state |
+| [reports/](reports/) | Verification, remediation, and audit reports (V1 sandbox verification, first-party plugin gap audits) | Reviewing empirical security findings and audit history |
+| [ADRs/](ADRs/) | Architecture Decision Records (see index below) | Reviewing binding architectural decisions and rationale |
 | **08_PROJECT_CONTEXT.md** (this file) | Synthesized onboarding reference; does not replace any source document | Starting work on Telos for the first time |
+
+### Architecture Decision Records (ADRs)
+
+| ADR | Title | Status |
+| --- | ----- | ------ |
+| [ADR-0001](ADRs/ADR-0001-Offline-First.md) | Offline-First | ❌ Empty stub |
+| [ADR-0002](ADRs/ADR-0002-Plugin-Architecture.md) | Plugin Architecture | ❌ Empty stub |
+| [ADR-0003](ADRs/ADR-0003-Fresh-OS-Restore.md) | Fresh-OS Restore | ❌ Empty stub |
+| [ADR-0004](ADRs/ADR-0004-Single-Passphrase.md) | Single Passphrase | ❌ Empty stub |
+| [ADR-0005](ADRs/ADR-0005-Compatible-Machine-Policy.md) | Compatible Machine Policy | ❌ Empty stub |
+| [ADR-0006](ADRs/ADR-0006-Directory-Based-Plugins.md) | Directory-Based Plugins | ❌ Empty stub |
+| [ADR-0007](ADRs/ADR-0007-Subprocess-Plugin-Execution.md) | Subprocess Plugin Execution | ✅ Populated / Accepted |
+| [ADR-0008](ADRs/ADR-0008-Full-Backup-V1.md) | Full Backup V1 | ❌ Empty stub |
+| [ADR-0009](ADRs/ADR-0009-Configuration-Manager.md) | Configuration Manager | ✅ Populated / Accepted |
+| [ADR-0010](ADRs/ADR-0010-Crypto-Envelope.md) | Crypto Envelope | ✅ Populated / Accepted |
+| [ADR-0011](ADRs/ADR-0011-Plugin-Execution-Isolation.md) | Plugin Execution Isolation | ✅ Populated / Accepted |
+| [ADR-0012](ADRs/ADR-0012-Plugin-Resource-Limits.md) | Plugin Resource Limits | ✅ Populated / Accepted |
+| [ADR-0013](ADRs/ADR-0013-Capture-Staging-Lifecycle.md) | Capture Staging Lifecycle | ✅ Populated / Accepted |
 
 ---
 
