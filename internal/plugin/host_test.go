@@ -1191,13 +1191,17 @@ func TestInvokeStderrTruncation(t *testing.T) {
 	if err := os.Mkdir(pluginDir, 0755); err != nil {
 		t.Fatal(err)
 	}
+	executableName := "plugin"
+	if runtime.GOOS == "windows" {
+		executableName += ".exe"
+	}
 	manifest := `id: io.telos.flood.test
 name: FloodTest
 version: 1.0.0
 interface_version: 1
 type: Discovery
 author: test
-executable: plugin`
+executable: ` + executableName
 	if err := os.WriteFile(filepath.Join(pluginDir, "manifest"), []byte(manifest), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -1222,7 +1226,7 @@ func main() {
 	if err := os.WriteFile(pluginSrc, []byte(fixtureCode), 0644); err != nil {
 		t.Fatal(err)
 	}
-	pluginExe := filepath.Join(pluginDir, "plugin")
+	pluginExe := filepath.Join(pluginDir, executableName)
 	cmd := exec.Command("go", "build", "-o", pluginExe, pluginSrc)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("failed to build fixture plugin: %v\n%s", err, out)
@@ -1259,7 +1263,7 @@ version: 1.0.0
 interface_version: 1
 type: Discovery
 author: test
-executable: plugin`
+executable: ` + executableName
 	if err := os.WriteFile(filepath.Join(pluginDirFail, "manifest"), []byte(manifestFail), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -1280,7 +1284,7 @@ func main() {
 	if err := os.WriteFile(pluginSrcFail, []byte(fixtureCodeFail), 0644); err != nil {
 		t.Fatal(err)
 	}
-	pluginExeFail := filepath.Join(pluginDirFail, "plugin")
+	pluginExeFail := filepath.Join(pluginDirFail, executableName)
 	cmdFail := exec.Command("go", "build", "-o", pluginExeFail, pluginSrcFail)
 	if out, err := cmdFail.CombinedOutput(); err != nil {
 		t.Fatalf("failed to build fixture fail plugin: %v\n%s", err, out)

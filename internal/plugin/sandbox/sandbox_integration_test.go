@@ -3,9 +3,12 @@
 package sandbox_test
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -414,4 +417,83 @@ func TestLinuxSandboxStderrTruncation(t *testing.T) {
 			t.Errorf("Expected Stderr length to be <= 4096, got %d", len(res.Stderr))
 		}
 	})
+}
+
+func TestLinuxSandboxPluginStdin(t *testing.T) {
+	tmpDir := t.TempDir()
+	pluginSrc := filepath.Join(tmpDir, "plugin_stdin.go")
+	pluginCode := `package main
+
+import (
+	"crypto/sha256"
+	"fmt"
+	"io"
+	"os"
+)
+
+func main() {
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		os.Exit(2)
+	}
+	fmt.Printf("%d:%x\n", len(data), sha256.Sum256(data))
+}
+`
+	if err := os.WriteFile(pluginSrc, []byte(pluginCode), 0644); err != nil {
+		t.Fatal(err)
+	}
+	pluginExe := filepath.Join(tmpDir, "plugin_stdin")
+	if output, err := exec.Command("go", "build", "-o", pluginExe, pluginSrc).CombinedOutput(); err != nil {
+		t.Fatalf("failed to build stdin fixture: %v\n%s", err, output)
+	}
+	telosExe := filepath.Join(tmpDir, "telos")
+	if output, err := exec.Command("go", "build", "-o", telosExe, "telos/cmd/telos").CombinedOutput(); err != nil {
+		t.Fatalf("failed to build telos CLI: %v\n%s", err, output)
+	}
+
+	probeCmd := exec.Command("true")
+	probeCmd.SysProcAttr = &syscall.SysProcAttr{
+		Cloneflags: syscall.CLONE_NEWPID | syscall.CLONE_NEWNET,
+	}
+	if probeErr := probeCmd.Run(); probeErr != nil {
+		if errors.Is(probeErr, syscall.EPERM) || errors.Is(probeErr, os.ErrPermission) {
+			t.Skipf("Skipping integration test: CI environment lacks capabilities for CLONE_NEWPID and CLONE_NEWNET (EPERM)")
+		}
+		t.Fatalf("Unexpected error during namespace capability probe: %v", probeErr)
+	}
+
+	sb, err := sandbox.NewLinuxSandbox(telosExe)
+	if err != nil {
+		t.Skipf("Sandbox not supported on this kernel: %v", err)
+	}
+	policy := &sandbox.Policy{
+		Executables: []string{pluginExe},
+		ReadPaths:   []string{tmpDir},
+		TimeoutSec:  10,
+		OutputLimit: 4096,
+		StderrLimit: 4096,
+		MemoryBytes: 2 * 1024 * 1024 * 1024,
+	}
+
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{name: "non_empty", data: []byte("discovery-request\n")},
+		{name: "nil", data: nil},
+		{name: "empty", data: []byte{}},
+		{name: "large", data: bytes.Repeat([]byte("x"), 4*1024*1024)},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := sb.Exec(context.Background(), pluginExe, tmpDir, tc.data, policy)
+			if err != nil {
+				t.Fatalf("sandbox exec: %v", err)
+			}
+			expected := fmt.Sprintf("%d:%x\n", len(tc.data), sha256.Sum256(tc.data))
+			if string(result.Stdout) != expected {
+				t.Fatalf("expected stdout %q, got %q", expected, result.Stdout)
+			}
+		})
+	}
 }

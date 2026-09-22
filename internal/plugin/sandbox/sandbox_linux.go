@@ -160,6 +160,10 @@ func RunSandboxHelper() error {
 		return errors.New("sandbox helper: no executable specified")
 	}
 
+	if err := attachPluginStdin(input.PluginStdin); err != nil {
+		return fmt.Errorf("sandbox helper: attach plugin stdin: %w", err)
+	}
+
 	// 1. Set PR_SET_NO_NEW_PRIVS — required before seccomp, prevents setuid escalation.
 	if err := unix.Prctl(unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); err != nil {
 		return fmt.Errorf("sandbox helper: PR_SET_NO_NEW_PRIVS: %w", err)
@@ -184,6 +188,47 @@ func RunSandboxHelper() error {
 	// 5. Exec the plugin. This replaces the sandbox helper process image.
 	//    The Landlock + seccomp restrictions are inherited by the exec'd process.
 	return syscall.Exec(input.Executable, []string{input.Executable}, os.Environ()) // #nosec G204 -- Executable is passed from the supervisor which validated it against the plugin manifest
+}
+
+func attachPluginStdin(data []byte) error {
+	fd, err := unix.MemfdCreate("telos-plugin-stdin", unix.MFD_CLOEXEC|unix.MFD_ALLOW_SEALING)
+	if err != nil {
+		return fmt.Errorf("memfd_create: %w", err)
+	}
+	closeFD := true
+	defer func() {
+		if closeFD {
+			_ = unix.Close(fd)
+		}
+	}()
+
+	for len(data) > 0 {
+		n, err := unix.Write(fd, data)
+		if err != nil {
+			return fmt.Errorf("write memfd: %w", err)
+		}
+		if n == 0 {
+			return errors.New("write memfd: wrote zero bytes")
+		}
+		data = data[n:]
+	}
+	if _, err := unix.Seek(fd, 0, 0); err != nil {
+		return fmt.Errorf("seek memfd: %w", err)
+	}
+	seals := unix.F_SEAL_WRITE | unix.F_SEAL_GROW | unix.F_SEAL_SHRINK
+	if _, err := unix.FcntlInt(uintptr(fd), unix.F_ADD_SEALS, seals); err != nil {
+		return fmt.Errorf("seal memfd: %w", err)
+	}
+	if err := unix.Dup2(fd, 0); err != nil {
+		return fmt.Errorf("dup memfd to stdin: %w", err)
+	}
+	if fd != 0 {
+		if err := unix.Close(fd); err != nil {
+			return fmt.Errorf("close original memfd: %w", err)
+		}
+		closeFD = false
+	}
+	return nil
 }
 
 // landlockABIVersion returns the highest Landlock ABI version supported by the kernel.
