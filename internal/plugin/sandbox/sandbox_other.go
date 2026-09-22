@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
-	"strings"
 	"time"
 
 	log "telos/internal/logger"
@@ -41,6 +40,9 @@ func (s *fallbackSandbox) Exec(ctx context.Context, executable string, dir strin
 	if err := policy.Validate(); err != nil {
 		return Result{}, fmt.Errorf("sandbox: invalid policy: %w", err)
 	}
+	if policy.StderrLimit <= 0 {
+		return Result{}, errors.New("sandbox: StderrLimit must be strictly positive")
+	}
 
 	// Application-level path validation is handled by Policy.Validate().
 
@@ -66,9 +68,10 @@ func (s *fallbackSandbox) Exec(ctx context.Context, executable string, dir strin
 	if outLimit <= 0 {
 		outLimit = 4 << 20
 	}
-	var stdout, stderr limitedBufferFallback
+	var stdout limitedBufferFallback
+	var stderr BoundedStderr
 	stdout.limit = outLimit
-	stderr.limit = 1 << 20
+	stderr.Limit = policy.StderrLimit
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -77,11 +80,11 @@ func (s *fallbackSandbox) Exec(ctx context.Context, executable string, dir strin
 		return Result{}, fmt.Errorf("sandbox: plugin timed out after %s", timeout)
 	}
 	if err != nil {
-		return Result{Stdout: stdout.buf, Stderr: stderr.buf},
-			fmt.Errorf("sandbox: plugin failed: %w (stderr: %s)",
-				err, strings.TrimSpace(string(stderr.buf)))
+		return Result{Stdout: stdout.buf, Stderr: stderr.Bytes(), StderrTruncated: stderr.Truncated()},
+			fmt.Errorf("sandbox: plugin failed: %w (stderr: %s)", err, stderr.Summary())
 	}
-	return Result{Stdout: stdout.buf, Stderr: stderr.buf}, nil
+
+	return Result{Stdout: stdout.buf, Stderr: stderr.Bytes(), StderrTruncated: stderr.Truncated()}, nil
 }
 
 type limitedBufferFallback struct {

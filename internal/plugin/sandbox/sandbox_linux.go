@@ -49,6 +49,9 @@ func (s *linuxSandbox) Exec(ctx context.Context, executable string, dir string,
 	if err := policy.Validate(); err != nil {
 		return Result{}, fmt.Errorf("sandbox: invalid policy: %w", err)
 	}
+	if policy.StderrLimit <= 0 {
+		return Result{}, errors.New("sandbox: StderrLimit must be strictly positive")
+	}
 
 	// Check Landlock ABI v1 support — fail closed if unavailable.
 	abi, err := landlockABIVersion()
@@ -90,9 +93,10 @@ func (s *linuxSandbox) Exec(ctx context.Context, executable string, dir string,
 	if outLimit <= 0 {
 		outLimit = 4 << 20
 	}
-	var stdout, stderr limitedBuffer
+	var stdout limitedBuffer
+	var stderr BoundedStderr
 	stdout.limit = outLimit
-	stderr.limit = 1 << 20 // 1 MB for stderr
+	stderr.Limit = policy.StderrLimit
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -118,11 +122,11 @@ func (s *linuxSandbox) Exec(ctx context.Context, executable string, dir string,
 		return Result{}, fmt.Errorf("sandbox: plugin timed out after %s", timeout)
 	}
 	if err != nil {
-		return Result{Stdout: stdout.buf, Stderr: stderr.buf},
-			fmt.Errorf("sandbox: plugin failed: %w (stderr: %s)",
-				err, strings.TrimSpace(string(stderr.buf)))
+		return Result{Stdout: stdout.buf, Stderr: stderr.Bytes(), StderrTruncated: stderr.Truncated()},
+			fmt.Errorf("sandbox: plugin failed: %w (stderr: %s)", err, stderr.Summary())
 	}
-	return Result{Stdout: stdout.buf, Stderr: stderr.buf}, nil
+
+	return Result{Stdout: stdout.buf, Stderr: stderr.Bytes(), StderrTruncated: stderr.Truncated()}, nil
 }
 
 // sandboxHelperInput is the JSON protocol between the supervisor and helper.

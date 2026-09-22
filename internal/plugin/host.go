@@ -27,6 +27,7 @@ import (
 // SupportedInterfaceVersion specifies the plugin interface version supported by this host.
 const SupportedInterfaceVersion = 1
 const defaultOutputLimit int64 = 4 << 20
+const defaultStderrLimit int64 = 1 << 20
 
 // Default resource limits established by ADR-0012.
 // Defaults live in ONE place, used only by New.
@@ -61,6 +62,10 @@ type Options struct {
 	// MaxFileSizeBytes is the maximum file size (RLIMIT_FSIZE) in bytes.
 	// 0 or negative defaults to 10 GB per ADR-0012 §3.
 	MaxFileSizeBytes int64
+
+	// StderrLimit bounds data written to stderr by the plugin.
+	// 0 or negative defaults to 1 MB per ADR-0012 §3.
+	StderrLimit int64
 
 	// MaxProcesses sets RLIMIT_NPROC as an optional administrative limit. It is
 	// counted per real UID, so it is NOT a per-plugin security boundary. Containment
@@ -134,6 +139,9 @@ func New(opts Options) *Host {
 	}
 	if opts.MaxProcesses < 0 {
 		opts.MaxProcesses = defaultMaxProcesses
+	}
+	if opts.StderrLimit <= 0 {
+		opts.StderrLimit = defaultStderrLimit
 	}
 	return &Host{opts: opts, plugins: make(map[string]Plugin)}
 }
@@ -288,15 +296,25 @@ func (h *Host) Invoke(ctx context.Context, id string, request any) (json.RawMess
 	cmd.Stdin = bytes.NewReader(append(input, '\n'))
 	var out bytes.Buffer
 	cmd.Stdout = &limitedWriter{w: &out, n: h.opts.OutputLimit}
-	var stderr bytes.Buffer
+	var stderr sandbox.BoundedStderr
+	stderr.Limit = h.opts.StderrLimit
 	cmd.Stderr = &stderr
 	err = cmd.Run()
 	if callCtx.Err() != nil {
 		return nil, fmt.Errorf("plugin %q timed out", id)
 	}
+
 	if err != nil {
-		return nil, fmt.Errorf("plugin %q failed: %w (%s)", id, err, strings.TrimSpace(stderr.String()))
+		return nil, fmt.Errorf("plugin %q failed: %w (%s)", id, err, stderr.Summary())
 	}
+
+	if stderr.Truncated() {
+		// Log truncation warning for successful exit.
+		if h.opts.Logger != nil {
+			h.opts.Logger.Warn(fmt.Sprintf("plugin %q warning: stderr truncated", id))
+		}
+	}
+
 	var response json.RawMessage
 	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
 		return nil, fmt.Errorf("plugin %q returned malformed JSON: %w", id, err)
@@ -340,6 +358,13 @@ func (h *Host) InvokeSandboxed(ctx context.Context, id string, request any) (jso
 	if err != nil {
 		return nil, fmt.Errorf("plugin %q sandbox exec: %w", id, err)
 	}
+
+	if result.StderrTruncated {
+		if h.opts.Logger != nil {
+			h.opts.Logger.Warn(fmt.Sprintf("plugin %q warning: stderr truncated", id))
+		}
+	}
+
 	var response json.RawMessage
 	if err := json.Unmarshal(result.Stdout, &response); err != nil {
 		return nil, fmt.Errorf("plugin %q returned malformed JSON: %w", id, err)
@@ -361,6 +386,7 @@ func (h *Host) buildPolicy(p *Plugin) *sandbox.Policy {
 		Network:          p.Manifest.NetworkAllowed,
 		TimeoutSec:       int(h.opts.Timeout.Seconds()),
 		OutputLimit:      h.opts.OutputLimit,
+		StderrLimit:      h.opts.StderrLimit,
 		MemoryBytes:      h.opts.MemoryBytes,
 		MaxProcesses:     h.opts.MaxProcesses,
 		MaxFileSizeBytes: h.opts.MaxFileSizeBytes,

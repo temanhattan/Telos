@@ -91,7 +91,7 @@ func TestInvokeUsesJSONProtocol(t *testing.T) {
 }
 
 func TestBuildPolicy(t *testing.T) {
-	h := New(Options{Timeout: 30 * time.Second, OutputLimit: 1024})
+	h := New(Options{Timeout: 30 * time.Second, OutputLimit: 1024, StderrLimit: 512})
 	p := Plugin{
 		ID:         "io.telos.test",
 		Dir:        "/opt/telos/plugins/test",
@@ -129,6 +129,9 @@ func TestBuildPolicy(t *testing.T) {
 	}
 	if policy.OutputLimit != 1024 {
 		t.Errorf("expected output limit 1024, got %d", policy.OutputLimit)
+	}
+	if policy.StderrLimit != 512 {
+		t.Errorf("expected stderr limit 512, got %d", policy.StderrLimit)
 	}
 }
 
@@ -230,7 +233,7 @@ func TestExecutablePath(t *testing.T) {
 // Even when a manifest declares NO additional filesystem_read paths,
 // buildPolicy() must include the plugin directory in ReadPaths.
 func TestBuildPolicyDefaultPluginDirAccess(t *testing.T) {
-	h := New(Options{Timeout: 30 * time.Second, OutputLimit: 1024})
+	h := New(Options{Timeout: 30 * time.Second, OutputLimit: 1024, StderrLimit: 1024})
 	p := Plugin{
 		ID:         "io.telos.minimal",
 		Dir:        "/opt/telos/plugins/minimal",
@@ -545,6 +548,9 @@ type reexecSandbox struct {
 	helperExe string
 }
 
+// Exec simulates sandbox execution by invoking the helper directly via exec.CommandContext.
+// It sets cmd.Stderr to BoundedStderr if StderrLimit > 0 to simulate truncation.
+// Since it's a test double, it lacks OS-level container isolation.
 func (s *reexecSandbox) Exec(ctx context.Context, executable string, dir string, stdin []byte, policy *sandbox.Policy) (sandbox.Result, error) {
 	helperInput := struct {
 		Policy      sandbox.Policy `json:"policy"`
@@ -569,16 +575,22 @@ func (s *reexecSandbox) Exec(ctx context.Context, executable string, dir string,
 	cmd.Env = append(os.Environ(), "_TELOS_SANDBOX=1")
 	cmd.Dir = dir
 	cmd.Stdin = bytes.NewReader(append(policyJSON, '\n'))
-	var stdout, stderr bytes.Buffer
+	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+
+	limit := policy.StderrLimit
+	if limit == 0 {
+		limit = defaultStderrLimit
+	}
+	stderr := &sandbox.BoundedStderr{Limit: limit}
+	cmd.Stderr = stderr
 
 	err = cmd.Run()
 	if err != nil {
-		return sandbox.Result{Stdout: stdout.Bytes(), Stderr: stderr.Bytes()},
-			fmt.Errorf("sandbox helper failed: %w (stderr: %s)", err, strings.TrimSpace(stderr.String()))
+		return sandbox.Result{Stdout: stdout.Bytes(), Stderr: stderr.Bytes(), StderrTruncated: stderr.Truncated()},
+			fmt.Errorf("sandbox helper failed: %w (stderr: %s)", err, stderr.Summary())
 	}
-	return sandbox.Result{Stdout: stdout.Bytes(), Stderr: stderr.Bytes()}, nil
+	return sandbox.Result{Stdout: stdout.Bytes(), Stderr: stderr.Bytes(), StderrTruncated: stderr.Truncated()}, nil
 }
 
 func TestNewHostDefaultsMatchADR0012(t *testing.T) {
@@ -601,6 +613,9 @@ func TestNewHostDefaultsMatchADR0012(t *testing.T) {
 	}
 	if h.opts.OutputLimit != 4194304 {
 		t.Errorf("expected OutputLimit default 4194304, got %d", h.opts.OutputLimit)
+	}
+	if h.opts.StderrLimit != defaultStderrLimit {
+		t.Errorf("expected StderrLimit default %d, got %d", defaultStderrLimit, h.opts.StderrLimit)
 	}
 	if h.opts.Timeout != 5*time.Minute {
 		t.Errorf("expected Timeout default 5m, got %v", h.opts.Timeout)
@@ -625,6 +640,9 @@ func TestNewHostDefaultsMatchADR0012(t *testing.T) {
 	if pol.OutputLimit != 4194304 {
 		t.Errorf("expected policy OutputLimit 4194304, got %d", pol.OutputLimit)
 	}
+	if pol.StderrLimit != defaultStderrLimit {
+		t.Errorf("expected policy StderrLimit %d, got %d", defaultStderrLimit, pol.StderrLimit)
+	}
 	if pol.TimeoutSec != 300 {
 		t.Errorf("expected policy TimeoutSec 300, got %d", pol.TimeoutSec)
 	}
@@ -635,10 +653,12 @@ func TestResourceLimitZeroValueSemantics(t *testing.T) {
 	// - MemoryBytes == 0 => default (536,870,912)
 	// - MaxFileSizeBytes == 0 => default (10,737,418,240)
 	// - MaxProcesses == 0 => disabled / default (0)
+	// - StderrLimit == 0 => default (1,048,576)
 	h := New(Options{
 		MemoryBytes:      0,
 		MaxFileSizeBytes: 0,
 		MaxProcesses:     0,
+		StderrLimit:      0,
 	})
 
 	if h.opts.MemoryBytes != 536870912 {
@@ -649,6 +669,9 @@ func TestResourceLimitZeroValueSemantics(t *testing.T) {
 	}
 	if h.opts.MaxProcesses != 0 {
 		t.Errorf("expected MaxProcesses == 0 to remain 0 (disabled), got %d", h.opts.MaxProcesses)
+	}
+	if h.opts.StderrLimit != defaultStderrLimit {
+		t.Errorf("expected StderrLimit == 0 to normalize to default %d, got %d", defaultStderrLimit, h.opts.StderrLimit)
 	}
 
 	p := Plugin{
@@ -674,10 +697,12 @@ func TestResourceLimitNegativeValueSemantics(t *testing.T) {
 	// - MemoryBytes < 0 => default (536,870,912)
 	// - MaxFileSizeBytes < 0 => default (10,737,418,240)
 	// - MaxProcesses < 0 => 0 (disabled)
+	// - StderrLimit < 0 => default (1,048,576)
 	h := New(Options{
 		MemoryBytes:      -1,
 		MaxFileSizeBytes: -100,
 		MaxProcesses:     -5,
+		StderrLimit:      -1,
 	})
 
 	if h.opts.MemoryBytes != 536870912 {
@@ -688,6 +713,9 @@ func TestResourceLimitNegativeValueSemantics(t *testing.T) {
 	}
 	if h.opts.MaxProcesses != 0 {
 		t.Errorf("expected MaxProcesses < 0 to normalize to 0, got %d", h.opts.MaxProcesses)
+	}
+	if h.opts.StderrLimit != defaultStderrLimit {
+		t.Errorf("expected StderrLimit < 0 to normalize to default %d, got %d", defaultStderrLimit, h.opts.StderrLimit)
 	}
 
 	p := Plugin{
@@ -706,6 +734,9 @@ func TestResourceLimitNegativeValueSemantics(t *testing.T) {
 	if pol.MaxProcesses != 0 {
 		t.Errorf("expected policy MaxProcesses 0, got %d", pol.MaxProcesses)
 	}
+	if pol.StderrLimit != defaultStderrLimit {
+		t.Errorf("expected policy StderrLimit %d, got %d", defaultStderrLimit, pol.StderrLimit)
+	}
 }
 
 func TestCustomHostOptionsFlowIntoPolicy(t *testing.T) {
@@ -714,6 +745,7 @@ func TestCustomHostOptionsFlowIntoPolicy(t *testing.T) {
 	const customFSize int64 = 1024 * 1024
 	const customProcs int = 16
 	const customOut int64 = 2048
+	const customStderr int64 = 2048
 	const customTimeout = 10 * time.Second
 
 	h := New(Options{
@@ -721,6 +753,7 @@ func TestCustomHostOptionsFlowIntoPolicy(t *testing.T) {
 		MaxFileSizeBytes: customFSize,
 		MaxProcesses:     customProcs,
 		OutputLimit:      customOut,
+		StderrLimit:      customStderr,
 		Timeout:          customTimeout,
 	})
 
@@ -735,6 +768,9 @@ func TestCustomHostOptionsFlowIntoPolicy(t *testing.T) {
 	}
 	if h.opts.OutputLimit != customOut {
 		t.Errorf("expected OutputLimit %d, got %d", customOut, h.opts.OutputLimit)
+	}
+	if h.opts.StderrLimit != customStderr {
+		t.Errorf("expected StderrLimit %d, got %d", customStderr, h.opts.StderrLimit)
 	}
 	if h.opts.Timeout != customTimeout {
 		t.Errorf("expected Timeout %v, got %v", customTimeout, h.opts.Timeout)
@@ -758,6 +794,9 @@ func TestCustomHostOptionsFlowIntoPolicy(t *testing.T) {
 	}
 	if pol.OutputLimit != customOut {
 		t.Errorf("expected policy OutputLimit %d, got %d", customOut, pol.OutputLimit)
+	}
+	if pol.StderrLimit != customStderr {
+		t.Errorf("expected policy StderrLimit %d, got %d", customStderr, pol.StderrLimit)
 	}
 	if pol.TimeoutSec != 10 {
 		t.Errorf("expected policy TimeoutSec 10, got %d", pol.TimeoutSec)
@@ -1069,4 +1108,321 @@ func TestConcurrentBuildPolicyUnderRace(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
+}
+
+func TestBoundedStderr(t *testing.T) {
+	tests := []struct {
+		name      string
+		limit     int64
+		writes    [][]byte
+		expected  []byte
+		truncated bool
+	}{
+		{
+			name:      "below cap",
+			limit:     10,
+			writes:    [][]byte{[]byte("hello")},
+			expected:  []byte("hello"),
+			truncated: false,
+		},
+		{
+			name:      "exactly cap",
+			limit:     5,
+			writes:    [][]byte{[]byte("hello")},
+			expected:  []byte("hello"),
+			truncated: false,
+		},
+		{
+			name:      "cap+1",
+			limit:     5,
+			writes:    [][]byte{[]byte("hello!")},
+			expected:  []byte("hello"),
+			truncated: true,
+		},
+		{
+			name:      "one huge write",
+			limit:     3,
+			writes:    [][]byte{[]byte("hello world")},
+			expected:  []byte("hel"),
+			truncated: true,
+		},
+		{
+			name:      "many small writes crossing the cap",
+			limit:     5,
+			writes:    [][]byte{[]byte("he"), []byte("l"), []byte("lo"), []byte("!")},
+			expected:  []byte("hello"),
+			truncated: true,
+		},
+		{
+			name:      "zero-length write",
+			limit:     5,
+			writes:    [][]byte{[]byte("hello"), []byte("")},
+			expected:  []byte("hello"),
+			truncated: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &sandbox.BoundedStderr{Limit: tc.limit}
+			for _, w := range tc.writes {
+				n, err := c.Write(w)
+				if err != nil {
+					t.Errorf("expected no error, got %v", err)
+				}
+				if n != len(w) {
+					t.Errorf("expected to consume %d bytes, got %d", len(w), n)
+				}
+			}
+			if !bytes.Equal(c.Bytes(), tc.expected) {
+				t.Errorf("expected %q, got %q", tc.expected, c.Bytes())
+			}
+			if c.Truncated() != tc.truncated {
+				t.Errorf("expected truncated=%v, got %v", tc.truncated, c.Truncated())
+			}
+		})
+	}
+}
+
+func TestInvokeStderrTruncation(t *testing.T) {
+	// Create a fixture that floods 64MB of stderr.
+	tmpDir := t.TempDir()
+	pluginDir := filepath.Join(tmpDir, "flood_plugin")
+	if err := os.Mkdir(pluginDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `id: io.telos.flood.test
+name: FloodTest
+version: 1.0.0
+interface_version: 1
+type: Discovery
+author: test
+executable: plugin`
+	if err := os.WriteFile(filepath.Join(pluginDir, "manifest"), []byte(manifest), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	pluginSrc := filepath.Join(pluginDir, "main.go")
+	fixtureCode := `package main
+
+import "os"
+
+func main() {
+	stderrBytes := make([]byte, 64*1024*1024)
+	for i := range stderrBytes {
+		stderrBytes[i] = 'a'
+	}
+	os.Stderr.Write(stderrBytes)
+	if len(os.Args) > 1 && os.Args[1] == "fail" {
+		os.Exit(1)
+	}
+	os.Stdout.WriteString("{\"status\":\"success\"}\n")
+}
+`
+	if err := os.WriteFile(pluginSrc, []byte(fixtureCode), 0644); err != nil {
+		t.Fatal(err)
+	}
+	pluginExe := filepath.Join(pluginDir, "plugin")
+	cmd := exec.Command("go", "build", "-o", pluginExe, pluginSrc)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build fixture plugin: %v\n%s", err, out)
+	}
+
+	// 1. Direct path
+	hDirect := New(Options{
+		PluginDirs: []string{tmpDir},
+	})
+	failures := hDirect.Discover()
+	if len(failures) != 0 {
+		t.Fatalf("unexpected discovery failures: %v", failures)
+	}
+
+	// Direct - exit 0
+	resp, err := hDirect.Invoke(context.Background(), "io.telos.flood.test", map[string]string{})
+	if err != nil {
+		t.Fatalf("expected success despite stderr flood, got: %v", err)
+	}
+	if string(resp) != `{"status":"success"}` {
+		t.Errorf("unexpected response: %s", string(resp))
+	}
+
+	// Direct - exit 1 (change the command by passing an arg, wait we can't easily pass args via Invoke.
+	// Oh, I can just modify the executable script to return exit 1 instead for another test. Let's do that.
+	// Since Invoke doesn't take arguments, I'll create another plugin `flood_fail`.
+	pluginDirFail := filepath.Join(tmpDir, "flood_fail")
+	if err := os.Mkdir(pluginDirFail, 0755); err != nil {
+		t.Fatal(err)
+	}
+	manifestFail := `id: io.telos.flood.fail
+name: FloodFail
+version: 1.0.0
+interface_version: 1
+type: Discovery
+author: test
+executable: plugin`
+	if err := os.WriteFile(filepath.Join(pluginDirFail, "manifest"), []byte(manifestFail), 0644); err != nil {
+		t.Fatal(err)
+	}
+	pluginSrcFail := filepath.Join(pluginDirFail, "main.go")
+	fixtureCodeFail := `package main
+
+import "os"
+
+func main() {
+	stderrBytes := make([]byte, 64*1024*1024)
+	for i := range stderrBytes {
+		stderrBytes[i] = 'a'
+	}
+	os.Stderr.Write(stderrBytes)
+	os.Exit(1)
+}
+`
+	if err := os.WriteFile(pluginSrcFail, []byte(fixtureCodeFail), 0644); err != nil {
+		t.Fatal(err)
+	}
+	pluginExeFail := filepath.Join(pluginDirFail, "plugin")
+	cmdFail := exec.Command("go", "build", "-o", pluginExeFail, pluginSrcFail)
+	if out, err := cmdFail.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build fixture fail plugin: %v\n%s", err, out)
+	}
+
+	hDirectFail := New(Options{
+		PluginDirs: []string{tmpDir},
+	})
+	hDirectFail.Discover()
+
+	_, errFail := hDirectFail.Invoke(context.Background(), "io.telos.flood.fail", map[string]string{})
+	if errFail == nil {
+		t.Fatalf("expected failure, got nil")
+	}
+	if !strings.Contains(errFail.Error(), "[stderr truncated]") {
+		eStr := errFail.Error()
+		if len(eStr) > 200 {
+			eStr = eStr[:200] + "...(truncated)"
+		}
+		t.Errorf("expected error to mention truncation, got: %v", eStr)
+	}
+}
+
+// TestInvokeMockedSandboxStderrTruncation uses the test-only reexecSandbox double.
+// It does not test the real linux sandbox enforcement!
+func TestInvokeMockedSandboxStderrTruncation(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Sandbox tests are Linux-only")
+	}
+
+	tmpDir := t.TempDir()
+	telosExe := filepath.Join(tmpDir, "telos")
+	cmd := exec.Command("go", "build", "-o", telosExe, "telos/cmd/telos")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build telos CLI: %v\n%s", err, out)
+	}
+
+	pluginDir := filepath.Join(tmpDir, "flood_plugin")
+	if err := os.Mkdir(pluginDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `id: io.telos.flood.test
+name: FloodTest
+version: 1.0.0
+interface_version: 1
+type: Discovery
+author: test
+executable: plugin`
+	if err := os.WriteFile(filepath.Join(pluginDir, "manifest"), []byte(manifest), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	pluginSrc := filepath.Join(pluginDir, "main.go")
+	fixtureCode := `package main
+
+import "os"
+
+func main() {
+	stderrBytes := make([]byte, 64*1024*1024)
+	for i := range stderrBytes {
+		stderrBytes[i] = 'a'
+	}
+	os.Stderr.Write(stderrBytes)
+	os.Stdout.WriteString("{\"status\":\"success\"}\n")
+}
+`
+	if err := os.WriteFile(pluginSrc, []byte(fixtureCode), 0644); err != nil {
+		t.Fatal(err)
+	}
+	pluginExe := filepath.Join(pluginDir, "plugin")
+	cmd = exec.Command("go", "build", "-o", pluginExe, pluginSrc)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build fixture plugin: %v\n%s", err, out)
+	}
+
+	pluginDirFail := filepath.Join(tmpDir, "flood_fail")
+	if err := os.Mkdir(pluginDirFail, 0755); err != nil {
+		t.Fatal(err)
+	}
+	manifestFail := `id: io.telos.flood.fail
+name: FloodFail
+version: 1.0.0
+interface_version: 1
+type: Discovery
+author: test
+executable: plugin`
+	if err := os.WriteFile(filepath.Join(pluginDirFail, "manifest"), []byte(manifestFail), 0644); err != nil {
+		t.Fatal(err)
+	}
+	pluginSrcFail := filepath.Join(pluginDirFail, "main.go")
+	fixtureCodeFail := `package main
+
+import "os"
+
+func main() {
+	stderrBytes := make([]byte, 64*1024*1024)
+	for i := range stderrBytes {
+		stderrBytes[i] = 'a'
+	}
+	os.Stderr.Write(stderrBytes)
+	os.Exit(1)
+}
+`
+	if err := os.WriteFile(pluginSrcFail, []byte(fixtureCodeFail), 0644); err != nil {
+		t.Fatal(err)
+	}
+	pluginExeFail := filepath.Join(pluginDirFail, "plugin")
+	cmdFail := exec.Command("go", "build", "-o", pluginExeFail, pluginSrcFail)
+	if out, err := cmdFail.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build fixture fail plugin: %v\n%s", err, out)
+	}
+
+	sb := &reexecSandbox{helperExe: telosExe}
+	hSandbox := New(Options{
+		PluginDirs:  []string{tmpDir},
+		Sandbox:     sb,
+		MemoryBytes: 2 * 1024 * 1024 * 1024, // 2GB to allow Go runtime to boot
+	})
+	failures := hSandbox.Discover()
+	if len(failures) != 0 {
+		t.Fatalf("unexpected discovery failures: %v", failures)
+	}
+
+	// Sandbox - exit 0
+	resp, err := hSandbox.InvokeSandboxed(context.Background(), "io.telos.flood.test", map[string]string{})
+	if err != nil {
+		t.Fatalf("expected sandboxed success despite stderr flood, got: %v", err)
+	}
+	if string(resp) != `{"status":"success"}` {
+		t.Errorf("unexpected response: %s", string(resp))
+	}
+
+	// Sandbox - exit 1
+	_, errFail := hSandbox.InvokeSandboxed(context.Background(), "io.telos.flood.fail", map[string]string{})
+	if errFail == nil {
+		t.Fatalf("expected failure, got nil")
+	}
+	if !strings.Contains(errFail.Error(), "[stderr truncated]") {
+		eStr := errFail.Error()
+		if len(eStr) > 200 {
+			eStr = eStr[:200] + "...(truncated)"
+		}
+		t.Errorf("expected error to mention truncation, got: %v", eStr)
+	}
 }

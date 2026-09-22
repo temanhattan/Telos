@@ -267,3 +267,151 @@ func main() {
 	fmt.Printf("{\"results\": %q}\n", fmt.Sprintf("%v", results))
 }
 `
+
+func TestLinuxSandboxStderrLimitValidation(t *testing.T) {
+	sb, err := sandbox.NewLinuxSandbox("/usr/bin/env")
+	if err != nil {
+		t.Fatalf("failed to create sandbox: %v", err)
+	}
+
+	tests := []struct {
+		limit int64
+		name  string
+	}{
+		{limit: 0, name: "zero_limit"},
+		{limit: -1, name: "negative_limit"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			pol := &sandbox.Policy{
+				Executables: []string{"/bin/true"},
+				StderrLimit: tc.limit,
+			}
+			_, err := sb.Exec(context.Background(), "/bin/true", "/", nil, pol)
+			if err == nil {
+				t.Fatalf("expected error for StderrLimit %d, got nil", tc.limit)
+			}
+			if !strings.Contains(err.Error(), "strictly positive") {
+				t.Errorf("unexpected error message: %v", err)
+			}
+		})
+	}
+}
+
+const pluginSourceStderr = `package main
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"strings"
+)
+
+func main() {
+	// Write 64MB to stderr
+	chunk := strings.Repeat("A", 1024*1024)
+	for i := 0; i < 64; i++ {
+		fmt.Fprint(os.Stderr, chunk)
+	}
+
+	in, _ := io.ReadAll(os.Stdin)
+	if strings.Contains(string(in), "fail") {
+		os.Exit(1)
+	}
+	fmt.Println("{\"results\": \"ok\"}")
+}
+`
+
+// To run this on Linux:
+//
+//	go test -v ./internal/plugin/sandbox -run TestLinuxSandboxStderrTruncation
+func TestLinuxSandboxStderrTruncation(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	pluginSrc := filepath.Join(tmpDir, "plugin_stderr.go")
+	if err := os.WriteFile(pluginSrc, []byte(pluginSourceStderr), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	pluginExe := filepath.Join(tmpDir, "plugin_stderr")
+	cmd := exec.Command("go", "build", "-o", pluginExe, pluginSrc)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("Failed to build plugin: %v\n%s", err, out)
+	}
+
+	telosExe := filepath.Join(tmpDir, "telos")
+	cmd = exec.Command("go", "build", "-o", telosExe, "telos/cmd/telos")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("Failed to build telos CLI: %v\n%s", err, out)
+	}
+
+	probeCmd := exec.Command("true")
+	probeCmd.SysProcAttr = &syscall.SysProcAttr{
+		Cloneflags: syscall.CLONE_NEWPID | syscall.CLONE_NEWNET,
+	}
+	if probeErr := probeCmd.Run(); probeErr != nil {
+		if errors.Is(probeErr, syscall.EPERM) || errors.Is(probeErr, os.ErrPermission) {
+			t.Skipf("Skipping integration test: CI environment lacks capabilities for CLONE_NEWPID and CLONE_NEWNET (EPERM)")
+		}
+		t.Fatalf("Unexpected error during namespace capability probe: %v", probeErr)
+	}
+
+	sb, err := sandbox.NewLinuxSandbox(telosExe)
+	if err != nil {
+		t.Skipf("Sandbox not supported on this kernel: %v", err)
+	}
+
+	pol := &sandbox.Policy{
+		Executables: []string{pluginExe},
+		ReadPaths:   []string{tmpDir},
+		TimeoutSec:  10,
+		OutputLimit: 4096,
+		StderrLimit: 4096,
+		// The Go runtime requires a large memory limit (2GB) inside the sandbox to bypass RLIMIT_AS initialization failure.
+		MemoryBytes: 2147483648,
+	}
+
+	t.Run("success_truncated", func(t *testing.T) {
+		res, err := sb.Exec(context.Background(), pluginExe, tmpDir, nil, pol)
+		if err != nil {
+			t.Fatalf("Expected success, got error: %v", err)
+		}
+		if !res.StderrTruncated {
+			t.Errorf("Expected StderrTruncated to be true")
+		}
+		if len(res.Stderr) > 4096 {
+			t.Errorf("Expected Stderr length to be <= 4096, got %d", len(res.Stderr))
+		}
+		if !strings.Contains(string(res.Stdout), "results") {
+			t.Errorf("Expected stdout JSON, got %q", res.Stdout)
+		}
+	})
+
+	t.Run("failure_truncated", func(t *testing.T) {
+		res, err := sb.Exec(context.Background(), pluginExe, tmpDir, []byte("fail"), pol)
+		if err == nil {
+			t.Fatalf("Expected error, got success")
+		}
+
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			if exitErr.ExitCode() != 1 {
+				t.Errorf("Expected exit code 1, got %d", exitErr.ExitCode())
+			}
+		} else {
+			t.Errorf("Expected ExitError, got %T: %v", err, err)
+		}
+
+		if !strings.Contains(err.Error(), "[stderr truncated]") {
+			t.Errorf("Expected error to contain '[stderr truncated]', got %v", err)
+		}
+
+		if !res.StderrTruncated {
+			t.Errorf("Expected StderrTruncated to be true")
+		}
+		if len(res.Stderr) > 4096 {
+			t.Errorf("Expected Stderr length to be <= 4096, got %d", len(res.Stderr))
+		}
+	})
+}

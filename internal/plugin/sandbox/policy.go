@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 )
 
 // Policy describes the security envelope for a plugin invocation.
@@ -34,6 +35,7 @@ type Policy struct {
 
 	// Output and timeout — enforced at application level (all platforms).
 	OutputLimit int64 // Max stdout bytes.
+	StderrLimit int64 // Max stderr bytes.
 	TimeoutSec  int   // Execution deadline in seconds.
 }
 
@@ -71,8 +73,57 @@ func (p *Policy) Validate() error {
 
 // Result holds the output of a sandboxed plugin invocation.
 type Result struct {
-	Stdout []byte
-	Stderr []byte
+	Stdout          []byte
+	Stderr          []byte
+	StderrTruncated bool
+}
+
+// BoundedStderr collects up to Limit bytes, discarding the rest.
+// It never returns an error to ensure the plugin's stderr pipe is always drained.
+type BoundedStderr struct {
+	Limit     int64
+	buf       []byte
+	truncated bool
+}
+
+func (b *BoundedStderr) Write(p []byte) (int, error) {
+	if b.Limit <= 0 {
+		b.truncated = true
+		return len(p), nil
+	}
+	remaining := b.Limit - int64(len(b.buf))
+	if remaining <= 0 {
+		if len(p) > 0 {
+			b.truncated = true
+		}
+		return len(p), nil
+	}
+	if int64(len(p)) > remaining {
+		b.buf = append(b.buf, p[:remaining]...)
+		b.truncated = true
+	} else {
+		b.buf = append(b.buf, p...)
+	}
+	return len(p), nil
+}
+
+// Bytes returns the collected stderr output.
+func (b *BoundedStderr) Bytes() []byte { return b.buf }
+
+// Truncated returns true if the stderr output exceeded the Limit and was truncated.
+func (b *BoundedStderr) Truncated() bool { return b.truncated }
+
+// Summary returns the collected stderr output as a string, with an appended
+// "[stderr truncated]" marker if the output exceeded the limit.
+func (b *BoundedStderr) Summary() string {
+	s := strings.TrimSpace(string(b.buf))
+	if b.truncated {
+		if s != "" {
+			s += "\n"
+		}
+		s += "[stderr truncated]"
+	}
+	return s
 }
 
 // Sandbox creates and runs isolated plugin subprocesses.
