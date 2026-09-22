@@ -98,6 +98,7 @@ func TestLinuxSandboxIntegration(t *testing.T) {
 		WritePaths:  []string{"/tmp/writable-file", "/tmp/writable-exe"},
 		TimeoutSec:  10,
 		OutputLimit: 4096,
+		StderrLimit: 4096,
 	}
 
 	res, err := sb.Exec(context.Background(), pluginExe, tmpDir, nil, pol)
@@ -391,8 +392,36 @@ func TestLinuxSandboxStderrTruncation(t *testing.T) {
 		}
 	})
 
+	// NOTE: does not depend on plugin stdin; see docs/reports/<pending>-sandbox-stdin-forwarding.md for a suspected unrelated defect in stdin forwarding, tracked separately.
 	t.Run("failure_truncated", func(t *testing.T) {
-		res, err := sb.Exec(context.Background(), pluginExe, tmpDir, []byte("fail"), pol)
+		failureSrc := filepath.Join(tmpDir, "plugin_stderr_failure.go")
+		failureCode := `package main
+
+import (
+	"os"
+	"strings"
+)
+
+func main() {
+	chunk := strings.Repeat("A", 1024*1024)
+	for i := 0; i < 64; i++ {
+		_, _ = os.Stderr.Write([]byte(chunk))
+	}
+	os.Exit(1)
+}
+`
+		if err := os.WriteFile(failureSrc, []byte(failureCode), 0644); err != nil {
+			t.Fatal(err)
+		}
+		failureExe := filepath.Join(tmpDir, "plugin_stderr_failure")
+		cmd := exec.Command("go", "build", "-o", failureExe, failureSrc)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("failed to build failure fixture: %v\n%s", err, output)
+		}
+
+		failurePolicy := *pol
+		failurePolicy.Executables = []string{failureExe}
+		res, err := sb.Exec(context.Background(), failureExe, tmpDir, nil, &failurePolicy)
 		if err == nil {
 			t.Fatalf("Expected error, got success")
 		}
