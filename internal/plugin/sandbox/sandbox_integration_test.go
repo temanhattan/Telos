@@ -392,7 +392,7 @@ func TestLinuxSandboxStderrTruncation(t *testing.T) {
 		}
 	})
 
-	// NOTE: does not depend on plugin stdin; see docs/reports/<pending>-sandbox-stdin-forwarding.md for a suspected unrelated defect in stdin forwarding, tracked separately.
+	// NOTE: does not depend on plugin stdin; see bug reports/plugin-sandbox-bug-report.md for a complete analysis of the resolved stdin forwarding issue.
 	t.Run("failure_truncated", func(t *testing.T) {
 		failureSrc := filepath.Join(tmpDir, "plugin_stderr_failure.go")
 		failureCode := `package main
