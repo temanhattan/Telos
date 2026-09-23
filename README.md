@@ -163,9 +163,6 @@ go test ./... -race -count=1
 | [Project Status](docs/99_Project_Status.md) | Active engineering status, verification logs, open issues, and next steps. |
 | [ADRs](docs/ADRs/) | Architecture Decision Records (ADR-0007, 0009–0013 accepted; 0001–0006, 0008 empty stubs). |
 | [Reports](docs/reports/) | Security remediation and first-party plugin audit reports. |
-| [Coding Standards](docs/06_Coding_Standards.md) | Development standards *(empty stub)*. |
-| [Roadmap](docs/07_Roadmap.md) | Phase scheduling and milestone targets *(empty stub)*. |
-
 ---
 
 ## Roadmap
