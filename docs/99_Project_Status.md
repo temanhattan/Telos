@@ -1,7 +1,7 @@
 # Telos — Project Status
 
 > **Status:** Active
-> **Last Updated:** 2026-09-19 (Plugin Boundary Invariants, ADR-0012 Limits, & Slice Isolation)
+> **Last Updated:** 2026-09-23 (Bounded Stderr and Sandbox Stdin Forwarding)
 > **Author:** AI Engineering Review (Antigravity)
 > **Audience:** Project maintainers, future contributors, AI sessions
 > **Purpose:** Engineering dashboard — understand exactly where the project stands
@@ -11,7 +11,7 @@
 ## Table of Contents
 
 1. [Overall Progress](#1-overall-progress)
-2. [2026-09-19 Engineering Update](#2-2026-09-19-engineering-update)
+2. [Engineering Updates](#2-engineering-updates)
 3. [Milestone Assessment](#3-milestone-assessment)
 4. [Documentation Status](#4-documentation-status)
 5. [Subsystem Status](#5-subsystem-status)
@@ -59,7 +59,17 @@
 
 ---
 
-## 2. 2026-09-19 Engineering Update
+## 2. Engineering Updates
+
+### 2026-09-23 Security and Correctness Update
+
+- **Sandbox stdin forwarding fix (`internal/plugin/sandbox/sandbox_linux.go`)**
+  - **Commit Hash:** `fd21debbf9339c8dbc83eb7c6b206e1a33c4e721`.
+  - **Bug:** The Linux sandbox supervisor serialized `sandboxHelperInput.PluginStdin`, but `RunSandboxHelper` never connected the decoded bytes to the sandboxed plugin's fd 0 before `syscall.Exec`. A live real-sandbox probe confirmed that plugins received empty/EOF stdin regardless of the request body.
+  - **Fix:** The helper writes `PluginStdin` to a sealed memfd, applies `F_SEAL_WRITE | F_SEAL_GROW | F_SEAL_SHRINK`, seeks to offset zero, duplicates it onto fd 0, and closes the original descriptor before Landlock and seccomp are applied.
+  - **Impact:** Discovery and Capture request bodies are now delivered to sandboxed plugins for the first time. This is a security-relevant correctness fix because sandbox request delivery is part of the plugin execution boundary.
+  - **Scope:** This was a pre-existing defect discovered incidentally during Item B work; it was not part of the original stderr-bounding scope.
+  - **Tests:** `TestLinuxSandboxPluginStdin` uses the real `NewLinuxSandbox` path and verifies non-empty, nil, explicitly empty, and 4 MiB stdin delivery. The existing Linux integration and stderr truncation tests also pass.
 
 ### Completed and Verified
 
@@ -78,13 +88,21 @@
 - **Documentation Policy Reconciliation for Restore Plugins**
   - **Commit Hash:** `7fa6f6775ef1c560e2bc7c93075922f3cf78b96a`.
   - **Evidence:** Reconciled `docs/05_Plugin_API.md`, `docs/reports/2026-08-31-V1-First-Party-Plugin-Gap-Audit-Verification.md`, `docs/reports/2026-08-31-V1-First-Party-Plugin-Gap-Audit.md`, and `docs/reports/2026-08-31-V1-First-Party-Plugin-Gap-Design-Resolution.md`. Clarified normative rules: Restore plugins default to `network: false` but may declare `network: true` where explicitly justified (e.g., package installation), whereas Discovery and Capture are strictly offline. Note: Commit 7fa6f67 message says "and host tests" but contains only 4 markdown files (no Go code or test files were included).
+- **Item B: Bounded Stderr on Direct `Invoke()` and Real Sandbox Paths**
+  - **Status:** DONE.
+  - **Commit Hash:** `3f1a55fdfa5c7e88db88b20ba047d40b75535b4d`.
+  - **Evidence:** `internal/plugin/host.go` normalizes one authoritative `defaultStderrLimit` and applies `sandbox.BoundedStderr` to direct invocation; `internal/plugin/sandbox/sandbox_linux.go` and `sandbox_other.go` apply the same bounded collector to sandbox execution. Non-positive sandbox limits fail closed.
+  - **Invariant-to-test coverage:**
+
+    | Invariant | Requirement | Tests |
+    | --- | --- | --- |
+    | **S1** | Direct invocation retains at most the configured stderr limit and preserves successful execution when stderr is truncated. | `TestBoundedStderr`, `TestInvokeStderrTruncation` |
+    | **S2** | The real Linux sandbox retains at most the configured stderr limit and reports truncation without unbounded growth. | `TestLinuxSandboxStderrTruncation/success_truncated` |
+    | **S3** | A plugin that floods stderr and exits non-zero remains a failure, with bounded/truncated stderr reported; invalid limits fail closed. | `TestLinuxSandboxStderrTruncation/failure_truncated`, `TestLinuxSandboxStderrLimitValidation`, `TestFallbackSandboxStderrLimitValidation` |
+
+  - **Verification:** Build, vet, lint, and tests were verified on Windows; the full race-enabled test suite was verified in WSL/Linux. Both platforms passed their applicable tests.
 
 ### Partially Done
-
-- **Item B: Bounded Stderr Collector on Direct `Invoke()` Path and Sandbox Path**
-  - **Status:** Item B (stderr) is PARTIAL: direct `Invoke()` path is unbounded; sandbox paths use a hardcoded 1 MB buffer; no single authoritative limit yet.
-  - **What exists:** The Linux sandbox helper (`internal/plugin/sandbox/sandbox_linux.go:95`) and non-Linux sandbox fallback (`internal/plugin/sandbox/sandbox_other.go:71`) enforce a hardcoded 1 MB limit on stderr via a local `limitedBuffer`.
-  - **What is missing:** The direct `Invoke()` path in `internal/plugin/host.go:291-292` uses an unbounded `var stderr bytes.Buffer; cmd.Stderr = &stderr`. If an untrusted plugin writes continuous stderr on this direct path, the host process will exhaust memory (OOM panic). Additionally, there is no single authoritative limit yet across host options and policy, and overflow handling that preserves the execution result without failing is not implemented on the direct path.
 
 ### Open Issues and Blockers
 
@@ -111,11 +129,9 @@
 
 ### Known Open Security Gaps (Re-verified as Still Present)
 
-1. **Unbounded Host Stderr on Direct Subprocess Invocations:**
-   `internal/plugin/host.go:291-292` uses unbounded `bytes.Buffer` for stderr. Untrusted plugins executed via `h.Invoke()` can exhaust host memory.
-2. **Subprocess Execution Blocked under Linux Sandbox:**
+1. **Subprocess Execution Blocked under Linux Sandbox:**
    Plugins declaring subprocesses (such as `apt` or `dpkg`) cannot execute them under the Landlock sandbox because `buildPolicy` does not append resolved executables or system libraries to the sandbox policy.
-3. **Trust Phase Completely Unimplemented:**
+2. **Trust Phase Completely Unimplemented:**
    `Plugin.Manifest.Signature` is parsed but ignored (`host.go:215`). No digital signature validation, no trusted key management, no TOFU, and no package integrity verification exist.
 4. **Non-Linux Platforms Have Degraded Plugin Isolation:**
    On Windows and macOS, plugins run with standard subprocess execution without Landlock filesystem containment, seccomp syscall filtering, or PID/network namespaces.
@@ -189,7 +205,7 @@ The roadmap defined in `08_PROJECT_CONTEXT.md` §10 outlines four phases. Below 
 | Capture Engine (S7) | ❌ Not started | |
 | Crypto Engine (S9) | 🟡 Foundation implemented | Authenticated AES-256-GCM envelopes and Argon2id KDF implemented and tested (8 unit tests). GPG signing, archive container serialization, and subsystem integration remain. |
 | Storage Backend (S8) | ❌ Not started | |
-| Plugin Host (S12) | 🟡 Skeleton + V1 sandbox | Directory scanning, manifest validation, offline network rejection, registration, bounded subprocess protocol, ADR-0012 resource limit defaults, Policy slice isolation, and Linux sandbox (Landlock + seccomp + namespaces) implemented. Bounded stderr on direct Invoke, subprocess translation (ADR-0007), staging lifecycle (ADR-0013), trust verification, and non-Linux sandboxes remain. |
+| Plugin Host (S12) | 🟡 Skeleton + V1 sandbox | Directory scanning, manifest validation, offline network rejection, registration, bounded subprocess protocol, bounded stderr on direct and real sandbox paths, sandbox stdin delivery, ADR-0012 resource limit defaults, Policy slice isolation, and Linux sandbox (Landlock + seccomp + namespaces) implemented. Subprocess translation (ADR-0007), staging lifecycle (ADR-0013), trust verification, and non-Linux sandboxes remain. |
 | Restore Engine (S10) | ❌ Not started | |
 | Verification Engine (S11) | ❌ Not started | |
 
@@ -247,7 +263,7 @@ The six core design documents collectively provide ~315 KB of thorough specifica
 | ID | Subsystem | Package | Files | Lines | Tests | Test Coverage |
 | ---- | ----------- | --------- | ------- | ------- | ------- | -------------- |
 | **S17** | Configuration Manager | `internal/config` | 11 Go files (10 source, 1 test) | ~600 | 6 test cases in `loader_test.go` | High — covers merge, strict decoding, plugin keys, validation accumulation, immutability, nested merge. |
-| **S12** | Plugin Host | `internal/plugin`, `internal/plugin/sandbox` | 10 Go files (6 source, 4 test across host & sandbox) | ~1,500 | 22 tests (17 in `host_test.go`, 5 in `sandbox/`) | High for manifest parsing, offline network checks, resource limits, slice isolation, path normalization, and Linux sandbox primitives (Landlock ABI v1-v7, seccomp BPF, namespaces). Verified in WSL2. Missing: bounded stderr on direct Invoke, subprocess resolution, staging lifecycle, non-Linux sandboxing, trust verification. |
+| **S12** | Plugin Host | `internal/plugin`, `internal/plugin/sandbox` | 10 Go files (6 source, 4 test across host & sandbox) | ~1,500 | 22 tests (17 in `host_test.go`, 5 in `sandbox/`) | High for manifest parsing, offline network checks, resource limits, policy isolation, bounded stderr, stdin delivery, path normalization, and Linux sandbox primitives (Landlock ABI v1-v7, seccomp BPF, namespaces). Verified in Windows and WSL2. Missing: subprocess resolution, staging lifecycle, non-Linux sandboxing, trust verification. |
 | **S9** | Crypto Engine (foundation) | `internal/crypto` | 2 Go files (1 source, 1 test) | ~250 | 8 test cases in `crypto_test.go` | High for Argon2id KDF, AES-256-GCM authenticated envelope, key-purpose separation, work-factor limits, and error handling. GPG signing and archive-container integration not started. |
 | **S16** | Logging & Audit | `internal/logger` | 2 Go files (1 source, 1 test) | ~120 | 6 test cases in `log_test.go` | Moderate — covers level creation, component tagging, context correlation, log levels, audit severity, JSON output. Missing: file output, log rotation, concurrent usage. |
 | **S4** | Domain Model (vocabulary) | `internal/model` | 9 Go files (8 source, 1 test) | ~500 | 2 test cases in `entities_test.go` | Covers data model structs and section representations. Manifest construction, validation, and sealing remain unwritten. |
@@ -470,9 +486,6 @@ Scans plugin directories, parses manifests, rejects invalid plugin types and sem
 The remaining work is structured in strict dependency order:
 
 ```
-[B: Stderr Limit & Direct Invoke Bounding]
-               │
-               ▼
 [RLIMIT_AS Investigation & ADR-0012 Amendment]
                │
                ▼
@@ -496,12 +509,33 @@ The remaining work is structured in strict dependency order:
 
 > **Note on Binaries:** A preliminary git history search found no committed .exe/.test files; not independently re-audited.
 
-### 1. Item B: Bounded Stderr Collector on Direct `Invoke()` Path & Single Authoritative Limit
-- **Status:** Item B (stderr) is PARTIAL: direct `Invoke()` path is unbounded; sandbox paths use a hardcoded 1 MB buffer; no single authoritative limit yet.
-- **Requirement:** Extract a unified `limitedBuffer` and apply it to `internal/plugin/host.go:Invoke()` so untrusted plugins cannot cause host Out-Of-Memory via unbounded stderr writes.
-- **Specification:** Single authoritative stderr limit (1 MB per ADR-0012) shared across host and sandbox; overflow truncates safely without altering the execution result.
+### Dependency order after completed Item B
 
-### 2. RLIMIT_AS Investigation and ADR-0012 Amendment (Pending)
+Item B is complete. The remaining dependency order is:
+
+```text
+RLIMIT_AS Investigation & ADR-0012 Amendment
+               │
+               ▼
+S0: Subprocess Security Analysis Review
+               │
+               ▼
+D: Subprocess Permission Handling (ADR-0007)
+               │
+               ▼
+E1: Staging Allocator (ADR-0013)
+               │
+               ▼
+E2: CaptureRequest.StagingLocation & Host Wiring
+               │
+               ▼
+E3: CaptureResponse.artifact_location Validation
+               │
+               ▼
+S1: CLI Shell & S2: Orchestrator Skeleton
+```
+
+### 1. RLIMIT_AS Investigation and ADR-0012 Amendment (Pending)
 - **Status:** Open blocker for the APT plugin (pending investigation).
 - **Issue:** A minimal compiled Go fixture fails to start under the ADR-0012 default `RLIMIT_AS` of 512 MB (`fatal error: failed to reserve page summary memory`). Source: `TestDefaultMemoryBytesEnforcedLinux` in `internal/plugin/host_test.go`, which logs `"REPORTED"` and still passes. State: the test does not assert startup, ADR-0012 has not been amended, and the ADR value was intentionally not changed in code (`internal/plugin/host.go:defaultMemoryBytes = 512 * 1024 * 1024`). The investigation and any ADR-0012 amendment have not been done (pending investigation).
 - **Requirement:** Investigate Go runtime virtual address space reservation requirements versus resident set size (RSS); earlier measurements were inconclusive. Formally amend ADR-0012 to establish a viable memory limit before modifying the code constant.
