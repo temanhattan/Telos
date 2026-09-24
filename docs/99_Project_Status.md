@@ -239,8 +239,6 @@ The roadmap defined in `08_PROJECT_CONTEXT.md` §10 outlines four phases. Below 
 | Threat Model | `03_Threat_Model.md` | 57,015 B | ✅ Complete | Excellent. Full STRIDE analysis, 10 attack surfaces, 7 threat actors, residual risk mapping. |
 | Data Model | `04_Data_Model.md` | 62,890 B | ✅ Complete | Excellent. All entities, relationships, lifecycles, identity strategy. |
 | Plugin API | `05_Plugin_API.md` | 63,321 B | ✅ Complete | Excellent. Five plugin types, execution model, sandbox, trust model, dispatch rules. |
-| Coding Standards | `06_Coding_Standards.md` | 2 B | ❌ Empty | Stub file only. |
-| Roadmap | `07_Roadmap.md` | 2 B | ❌ Empty | Stub file only. |
 | Project Context | `08_PROJECT_CONTEXT.md` | 21,931 B | ✅ Complete | Good. Navigational onboarding reference. |
 | Project Status | `99_Project_Status.md` | Active file | ✅ Complete | Engineering dashboard. |
 
@@ -249,8 +247,7 @@ The roadmap defined in `08_PROJECT_CONTEXT.md` §10 outlines four phases. Below 
 The six core design documents collectively provide ~315 KB of thorough specification.
 
 **Gaps:**
-- `06_Coding_Standards.md` is empty — no Go style guide, naming conventions, or error handling patterns documented.
-- `07_Roadmap.md` is empty — formal timeline beyond `08_PROJECT_CONTEXT.md` §10 is unwritten.
+- No standalone coding-standards or roadmap document is currently present; contributor guidance and sequencing are maintained in the canonical documents and this status file.
 - The `updates/` directory contains working artifacts from prior development sessions (architecture reviews, audit reports, implementation plans). These are historical references, not canonical sources of truth.
 - Four reports in `docs/reports/` document sandbox remediation, first-party plugin audit verification, and design resolutions.
 
@@ -435,7 +432,6 @@ Dependency footprint remains minimal and intentional (four direct dependencies).
 | **TD-5** | Medium | `internal/config/defaults.go` | Default config paths are Linux-only (`/var/lib/telos`). | Make platform-aware using `os.UserConfigDir()`. | **OPEN** |
 | **TD-6** | Low | `internal/logger/log.go:71-73` | Console writer activated for any `*os.File`. | Add explicit `UseConsole bool` option. | **OPEN** |
 | **TD-7** | Info | `docs/ADRs/` | 7 ADR files (0001–0006, 0008) remain empty stubs. | Backfill ADR format from canonical documents. | **PARTIAL** (6 of 13 ADRs now populated: ADR-0007, 0009, 0010, 0011, 0012, 0013) |
-| **TD-8** | Info | `docs/06_Coding_Standards.md`, `docs/07_Roadmap.md` | Empty stub documents. | Write before onboarding contributors. | **OPEN** |
 
 ---
 
