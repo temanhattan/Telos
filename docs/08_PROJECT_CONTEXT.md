@@ -170,12 +170,12 @@ Each plugin invocation is a fresh subprocess executing over a versioned JSON-ser
   - Task count: Process limits via `RLIMIT_NPROC` default to 0 (disabled in V1; true task bounding deferred to V2 cgroups v2).
 - **Offline Network Rejection:** Manifests declaring `permissions.network: true` for `Discovery` and `Capture` plugins are strictly rejected at load time in `host.go:load()`. Restore plugins default to `network: false`, but may request network access where explicitly justified.
 - **Policy Slice Isolation:** `buildPolicy()` allocates fresh slices for `ReadPaths` and `Executables`, and clones `WritePaths` via `slices.Clone`, preventing any slice aliasing or concurrent mutation from affecting the host registry.
-- **Non-Linux Fallback:** On Windows and macOS, executions fall back to standard subprocess invocation without kernel sandboxing, with application-level timeouts and audit log warnings.
+- **Non-Linux Fallback:** On Windows and macOS, executions fall back to standard subprocess invocation without kernel sandboxing, with application-level timeouts, bounded stderr, and audit log warnings.
+- **Bounded Stderr:** Direct and sandboxed execution paths use `sandbox.BoundedStderr` with the configured stderr limit.
 
 #### Planned / Not Yet Implemented
 - **Subprocess Authorization (ADR-0007):** Will validate manifest `subprocess` names (rejecting slashes), resolve host paths via `exec.LookPath`, append resolved binaries to `Policy.Executables`, and automatically grant Landlock read+execute permissions to system library paths (`/lib`, `/lib64`, `/usr/lib`, `/usr/lib64`, `/etc/alternatives`).
 - **Capture Staging Lifecycle (ADR-0013):** Core will allocate cryptographically random temporary directories under `/var/lib/telos/staging/capture-<uuid>` (mode 0700), pass `staging_location` in `CaptureRequest`, append staging paths to `Policy.WritePaths` and `Policy.ReadPaths`, validate that returned artifacts are strictly relative subpaths within staging, and ensure unconditional staging cleanup.
-- **Bounded Stderr on Direct Path:** The direct `Invoke()` path currently uses an unbounded `bytes.Buffer` (which will be replaced with a unified `limitedBuffer`), and a single authoritative stderr limit across host and sandbox will be established.
 - **RLIMIT_AS Amendment:** ADR-0012 will be formally amended to account for Go 64-bit runtime virtual address space reservation requirements (investigation pending; earlier measurements were inconclusive) before adjusting the default memory limit in code, unblocking compiled Go plugins and the APT plugin.
 
 ---
@@ -403,8 +403,6 @@ Priority (highest to lowest):
 | [03_Threat_Model.md](03_Threat_Model.md) | Threat landscape, STRIDE analysis, trust boundaries, attack vectors, mitigations | Implementing security-sensitive features |
 | [04_Data_Model.md](04_Data_Model.md) | Entity definitions, field schemas, relationships, lifecycle rules, serialization formats, validation rules | Working with data structures and schemas |
 | [05_Plugin_API.md](05_Plugin_API.md) | Plugin types, identity model, lifecycle, execution model, sandbox/permissions, request/response contracts, dispatch rules, shared types, error handling | Building or modifying plugins |
-| [06_Coding_Standards.md](06_Coding_Standards.md) | Coding standards and conventions *(empty stub)* | Contributing new Go source code |
-| [07_Roadmap.md](07_Roadmap.md) | Project implementation timeline and phases *(empty stub)* | Reviewing milestone planning |
 | [99_Project_Status.md](99_Project_Status.md) | Active engineering status dashboard, test evidence, verified subsystem states, open issues, and next steps | Understanding current implementation state |
 | [reports/](reports/) | Verification, remediation, and audit reports (V1 sandbox verification, first-party plugin gap audits) | Reviewing empirical security findings and audit history |
 | [ADRs/](ADRs/) | Architecture Decision Records (see index below) | Reviewing binding architectural decisions and rationale |
