@@ -18,7 +18,7 @@ Implementation is in Phase 1 (Foundation). Progress is tracked by subsystem matu
 | **S16: Logging & Audit** | Partial | Structured JSON logging via zerolog, component tagging, correlation IDs, dedicated `audit` severity. Log rotation/file output pending. |
 | **S4: Domain Model** | Foundation | Behavior-free Go structs in `internal/model` representing manifests, plans, profiles, and archive records. Sealing logic pending. |
 | **S9: Crypto Engine** | Foundation | Argon2id key derivation, AES-256-GCM authenticated envelopes, and general vs. credential key separation. Container format pending. |
-| **S12: Plugin Host & Sandbox** | Partial | Manifest validation, offline checks, ADR-0012 limits, slice isolation, Linux sandbox (Landlock ABI v1–v7, seccomp BPF, namespaces). Stderr bounding, subprocesses (ADR-0007), staging (ADR-0013), and trust verification pending. |
+| **S12: Plugin Host & Sandbox** | Partial | Manifest validation, offline checks, ADR-0012 limits, slice isolation, Linux sandbox (Landlock ABI v1–v7, seccomp BPF, namespaces), and bounded stderr on direct and sandbox paths. Subprocesses (ADR-0007), staging (ADR-0013), and trust verification remain pending. |
 | **S1: CLI Shell** | Planned | Skeleton `cmd/telos/main.go` exists (sandbox re-exec helper & logger demo). Argument parsing not implemented. |
 | **S2: Orchestrator** | Planned | Pipeline coordination engine unwritten. |
 | **S3, S5, S6: Discovery, Classifier, Planner** | Planned | Environment inspection, intent classification, and blueprint planning unwritten. |
@@ -81,6 +81,7 @@ The security model isolates untrusted plugin code and protects system integrity:
 - **Resource Limits (`prlimit`):** Enforces ADR-0012 limits: 512 MB virtual memory (`RLIMIT_AS`), 10 GB maximum file size (`RLIMIT_FSIZE`), and task limits (`RLIMIT_NPROC` 0 / disabled).
 - **Network Invariants:** Rejects `Discovery` and `Capture` plugins declaring `network: true` at manifest load time.
 - **Policy Slice Isolation:** Defensively allocates and clones `Policy` path slices to prevent registry aliasing.
+- **Bounded Stderr:** Direct `Invoke()` and sandbox execution paths use `sandbox.BoundedStderr` with the configured limit. Item B was completed in commit `3f1a55f`.
 
 ### Non-Linux Fallback (Windows & macOS)
 - Standard subprocess execution without Landlock, seccomp BPF, or namespace containment. Falls back to process timeouts and application-level path validation. Emits an `audit` warning at startup.
@@ -88,7 +89,6 @@ The security model isolates untrusted plugin code and protects system integrity:
 ### Not Yet Enforced
 - **Subprocess Authorization (ADR-0007):** Resolving host binaries and granting Landlock access to system libraries (`/lib`, `/usr/lib`) is not implemented.
 - **Capture Staging Lifecycle (ADR-0013):** Isolated temporary staging directories and artifact subpath traversal validation are not implemented.
-- **Direct Path Stderr Limit:** Direct `Invoke()` path uses an unbounded buffer (sandbox paths use a hardcoded 1 MB limit).
 - **Trust Verification:** Digital signatures, trusted key management, TOFU, and package integrity verification are unwritten.
 
 ---
@@ -169,9 +169,10 @@ go test ./... -race -count=1
 
 Remaining foundational items in strict dependency order (from [docs/99_Project_Status.md](docs/99_Project_Status.md)):
 
-1. **Item B:** Bounded stderr collector on direct `Invoke()` path and single authoritative limit.
-2. **RLIMIT_AS Investigation & ADR-0012 Amendment (pending):** Resolve minimal compiled Go fixture startup failure (`fatal error: failed to reserve page summary memory` under 512 MB virtual memory cap; blocks APT plugin).
-3. **Item S0:** Subprocess security analysis review.
-4. **Item D:** Subprocess permission handling per ADR-0007 (basename validation, LookPath, Landlock library grants).
-5. **Items E1, E2, E3:** Capture staging lifecycle per ADR-0013 (staging allocator, request wiring, artifact subpath validation).
-6. **Subsystem Milestones:** CLI Shell (S1, resolving TD-1 placeholder), Orchestrator (S2), Discovery Engine (S3), Capture Engine (S7), and Storage (S8).
+Item B — bounded stderr on direct and sandbox paths — is completed in commit `3f1a55f`.
+
+1. **RLIMIT_AS Investigation & ADR-0012 Amendment (pending):** Resolve minimal compiled Go fixture startup failure (`fatal error: failed to reserve page summary memory` under 512 MB virtual memory cap; blocks APT plugin).
+2. **Item S0:** Subprocess security analysis review.
+3. **Item D:** Subprocess permission handling per ADR-0007 (basename validation, LookPath, Landlock library grants).
+4. **Items E1, E2, E3:** Capture staging lifecycle per ADR-0013 (staging allocator, request wiring, artifact subpath validation).
+5. **Subsystem Milestones:** CLI Shell (S1, resolving TD-1 placeholder), Orchestrator (S2), Discovery Engine (S3), Capture Engine (S7), and Storage (S8).
