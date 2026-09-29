@@ -40,7 +40,7 @@
 | **Logging & Audit (S16)** | Partially implemented: zerolog wrapper with structured JSON output, level mapping, component tagging, correlation ID context, and a custom `audit` severity. Tested (6 unit tests). |
 | **Domain model (S4 foundation)** | Implemented in `internal/model`: behavior-free, platform-neutral types for the manifest and its sections, plans/actions, archive and integrity records, plugin metadata, approvals, restore results, and verification reports. Tested (2 unit tests). |
 | **Crypto Engine (S9 foundation)** | Implemented in `internal/crypto`: Argon2id key derivation, AES-256-GCM authenticated envelopes, general/credential key-purpose separation, SHA-256 hashing, and malformed-envelope work-factor bounds. Tested (8 unit tests). GPG signing, archive-container serialization, and subsystem integration remain unimplemented. |
-| **Plugin Host (S12 skeleton + V1 sandbox)** | Implemented in `internal/plugin`: directory scanning, strict manifest parsing, interface/type/permission validation, duplicate-ID isolation, stable registration snapshots, bounded timed JSON subprocess invocation, and V1 OS-level plugin isolation on Linux (Landlock + seccomp + namespaces, NO_NEW_PRIVS, and resource limits). Enforces offline invariants (rejects Discovery/Capture with network permission), ADR-0012 resource limit defaults (512MB RAM, 10GB file size, MaxProcesses=0), and defensive Policy slice isolation. Tested (17 host tests + 5 sandbox tests; verified in WSL2). Trust verification (signature checking, trusted key handling, TOFU, and package integrity) is documented but **NOT implemented**. Non-Linux platforms use un-sandboxed fallback execution. |
+| **Plugin Host (S12 skeleton + V1 sandbox)** | Implemented in `internal/plugin`: directory scanning, strict manifest parsing, interface/type/permission validation, duplicate-ID isolation, stable registration snapshots, bounded timed JSON subprocess invocation, and V1 OS-level plugin isolation on Linux (Landlock + seccomp + namespaces, NO_NEW_PRIVS, and resource limits). Enforces offline invariants (rejects Discovery/Capture with network permission), ADR-0012 resource limit defaults (RLIMIT_AS disabled, 10GB file size, MaxProcesses=0), and defensive Policy slice isolation. Tested (17 host tests + 5 sandbox tests; verified in WSL2). Trust verification (signature checking, trusted key handling, TOFU, and package integrity) is documented but **NOT implemented**. Non-Linux platforms use un-sandboxed fallback execution. |
 | **CLI entry point** | Skeleton `cmd/telos/main.go` — creates a logger, re-exec sandbox helper entrypoint, and invokes a placeholder demo subsystem (`core.SomeSubsystem`). Argument parsing is not functional. |
 | **Everything else** | Empty directories or does not exist. |
 
@@ -79,8 +79,8 @@
   - **Tests:** `TestNetworkPermissionValidation` (10 subtests covering Discovery rejection, Capture rejection, ClassificationRule rejection, Storage acceptance, Restore acceptance, offline variants, and unknown types) and `TestInvariantN1NoDiscoveryOrCaptureHasNetwork` in `internal/plugin/host_test.go`. All PASS.
 - **Item C1: HostOptions Resource Limits Defaults and Policy Wiring (`internal/plugin/host.go`)**
   - **Commit Hash:** `7ae714ae96154a92e78354fb8c3ea8b83267bdfd`.
-  - **Evidence:** `internal/plugin/host.go:34-42` defines single-source-of-truth constants matching ADR-0012: `defaultMemoryBytes = 512MB` (536,870,912 bytes), `defaultMaxFileSizeBytes = 10GB` (10,737,418,240 bytes), `defaultMaxProcesses = 0` (disabled). Lines 57-70 add `MemoryBytes`, `MaxFileSizeBytes`, and `MaxProcesses` to `Options`. Lines 129-137 implement normalization rules in `New()` (`<= 0` falls back to default for memory and file size; `< 0` falls back to 0 for MaxProcesses). Lines 364-366 copy normalized values into `sandbox.Policy` in `buildPolicy()`.
-  - **Tests:** `TestNewHostDefaultsMatchADR0012`, `TestResourceLimitZeroValueSemantics`, `TestResourceLimitNegativeValueSemantics`, `TestCustomHostOptionsFlowIntoPolicy`, `TestMaxFileSizeBytesEnforcedLinux` (PASS on Linux), `TestDefaultMemoryBytesEnforcedLinux` (PASS on Linux, confirming minimal compiled Go fixture failure under 512MB RLIMIT_AS with "failed to reserve page summary memory").
+  - **Evidence:** `internal/plugin/host.go:34-42` defines single-source-of-truth constants matching ADR-0012: `defaultMemoryBytes = 0` (RLIMIT_AS disabled), `defaultMaxFileSizeBytes = 10GB` (10,737,418,240 bytes), and `defaultMaxProcesses = 0` (disabled). Lines 57-70 add `MemoryBytes`, `MaxFileSizeBytes`, and `MaxProcesses` to `Options`. `New()` normalizes only negative `MemoryBytes` values to 0; positive values remain explicit overrides. Lines 364-366 copy normalized values into `sandbox.Policy` in `buildPolicy()`.
+  - **Tests:** `TestNewHostDefaultsMatchADR0012`, `TestResourceLimitZeroValueSemantics`, `TestResourceLimitNegativeValueSemantics`, `TestCustomHostOptionsFlowIntoPolicy`, `TestMaxFileSizeBytesEnforcedLinux`, `TestDefaultMemoryLimitDisabledLinux`, and the explicit RLIMIT_AS containment test.
 - **Item C2: Policy Slice Isolation in `buildPolicy` (`internal/plugin/host.go`)**
   - **Commit Hash:** `77c37484a691e8c89bc837eac0b4388a488fba9e`.
   - **Evidence:** `internal/plugin/host.go:352-368` guarantees returned `sandbox.Policy` slices do not alias `Plugin` or `Manifest` slices. `ReadPaths` allocates a fresh slice (`make([]string, 0, 1+len(p.Manifest.FilesystemRead))`), `WritePaths` clones via `slices.Clone(p.Manifest.FilesystemWrite)`, and `Executables` is freshly allocated (`[]string{p.Executable}`).
@@ -106,12 +106,10 @@
 
 ### Open Issues and Blockers
 
-- **OPEN ISSUE: Untracked RLIMIT_AS experiment material was quarantined outside the repo; the investigation must be redone.**
-- **OPEN ISSUE (blocks the APT plugin): Minimal Compiled Go Fixture Startup Failure under RLIMIT_AS 512 MB**
-  - **Issue:** A minimal compiled Go fixture fails to start under the ADR-0012 default `RLIMIT_AS` of 512 MB (`fatal error: failed to reserve page summary memory`).
-  - **Source:** `TestDefaultMemoryBytesEnforcedLinux` in `internal/plugin/host_test.go:860-924`, which logs `"REPORTED: minimal compiled Go fixture failed under 512 MB RLIMIT_AS default: ..."` and still passes.
-  - **State:** The test does not assert startup (it logs the error and returns cleanly without failing). ADR-0012 has not been amended, and the ADR value was intentionally not changed in code (`internal/plugin/host.go:defaultMemoryBytes = 512 * 1024 * 1024`). The investigation and any ADR-0012 amendment have not been done (pending investigation).
-  - **Impact:** Blocks the APT plugin and any compiled Go plugin from starting under default resource limits until Go runtime virtual address space reservation is investigated and ADR-0012 is formally amended.
+- **Resolved RLIMIT_AS startup issue (2026-09-30)**
+  - **Finding:** The archived empirical investigation showed that the 512 MB default constrained the Go helper/plugin virtual address space and could prevent startup; it was not a physical-memory limit.
+  - **Decision:** ADR-0012 now sets `MemoryBytes = 0` by default, with zero and negative values disabling RLIMIT_AS. Positive values remain explicit overrides.
+  - **Impact:** Compiled Go plugins, including the planned APT plugin, are no longer blocked by the V1 default. Physical-memory containment remains deferred to the V2 cgroup memory architecture.
 
 ### Planned but NOT Done
 
@@ -160,7 +158,8 @@ Real test execution results verified on 2026-09-19:
     - All 44 top-level tests pass with 0 skips when executed as root.
     - Verified Linux-only runtime enforcement:
       - `TestMaxFileSizeBytesEnforcedLinux`: **PASS** (9.78s) — verified RLIMIT_FSIZE enforcement prevents file writes beyond limit.
-      - `TestDefaultMemoryBytesEnforcedLinux`: **PASS** (7.05s) — logs REPORTED and passes; verifies RLIMIT_AS 512MB default is active (minimal compiled Go fixture fails under 512MB RLIMIT_AS default: "failed to reserve page summary memory").
+      - `TestDefaultMemoryLimitDisabledLinux`: **PASS** — verifies a compiled Go fixture starts successfully with the default `MemoryBytes = 0` and no RLIMIT_AS cap.
+      - Explicit RLIMIT_AS containment test: **PASS** — verifies a positive administrator-supplied `MemoryBytes` value remains enforced.
       - `TestBuildSeccompFilterStructure`: **PASS** (0.00s)
       - `TestBuildSeccompFilterClone3Denied`: **PASS** (0.00s)
       - `TestLinuxSandboxIntegration`: **PASS** (7.61s) — Landlock ABI 7, seccomp BPF, and PID/net namespaces verified: `[clone3: ENOSYS clone_newuser: EPERM mount: EPERM unshare: EPERM setns: EPERM read_allowed_file: OK read_allowed_dir: OK write_allowed_file: OK execute_writable: BLOCKED read_denied: BLOCKED]`.
@@ -174,7 +173,7 @@ Real test execution results verified on 2026-09-19:
 
 1. **Strict Offline Invariants for Discovery and Capture:** Manifests requesting `permissions.network: true` for `Discovery` and `Capture` plugin types are rejected during loading (`host.go:load()`).
 2. **Restore Plugin Network Policy:** Reconciled documentation across `05_Plugin_API.md` and gap audit reports: Restore plugins default to offline (`network: false`) but are permitted to declare `network: true` if required for package downloads.
-3. **ADR-0012 HostOptions and Policy Defaults:** Enforced resource limit defaults matching ADR-0012: `MemoryBytes = 512 MB`, `MaxFileSizeBytes = 10 GB`, `MaxProcesses = 0` (disabled). Explicit non-zero values from `Options` flow cleanly into `Policy`.
+3. **ADR-0012 HostOptions and Policy Defaults:** Enforced resource limit defaults matching ADR-0012: `MemoryBytes = 0` (RLIMIT_AS disabled), `MaxFileSizeBytes = 10 GB`, `MaxProcesses = 0` (disabled). Explicit positive `MemoryBytes` values flow cleanly into `Policy`.
 4. **Policy Slice Defense-in-Depth:** In `host.go:buildPolicy()`, returned policy slices are strictly decoupled from plugin manifest backing arrays to prevent any downstream mutation or concurrency race conditions from contaminating host registry state.
 
 ---
@@ -325,7 +324,7 @@ The V1 Linux sandbox provides OS-level isolation. Verified status of mechanisms:
 - **Seccomp-BPF (syscall denylist):** IMPLEMENTED + RUNTIME VERIFIED (`clone3` denied with `ENOSYS`; namespace clones denied with `EPERM`; `mount`, `unshare`, `setns` denied)
 - **Namespaces (PID and Network):** IMPLEMENTED + RUNTIME VERIFIED (new PID namespace, loopback DOWN network namespace)
 - **`PR_SET_NO_NEW_PRIVS`:** IMPLEMENTED + RUNTIME VERIFIED
-- **Resource limits (`prlimit`):** IMPLEMENTED + RUNTIME VERIFIED (RLIMIT_AS 512MB, RLIMIT_FSIZE 10GB, RLIMIT_NPROC 0 per ADR-0012)
+- **Resource limits (`prlimit`):** IMPLEMENTED + RUNTIME VERIFIED (`RLIMIT_AS` disabled by default with explicit overrides, `RLIMIT_FSIZE` 10GB, `RLIMIT_NPROC` 0 per ADR-0012)
 - **Output limits and timeouts:** IMPLEMENTED + STRUCTURALLY VERIFIED (4 MB stdout output limit, execution deadline)
 - **Path normalization & boundary containment:** IMPLEMENTED + RUNTIME VERIFIED (`internal/plugin/sandbox/paths.go`)
 - **Executable confinement:** IMPLEMENTED + RUNTIME VERIFIED
@@ -465,7 +464,7 @@ Platform-neutral Go structs in `internal/model` representing the core vocabulary
 Generates Argon2id key derivations from passphrases, AES-256-GCM encrypted authenticated envelopes with tamper detection, purpose-specific key separation (`PurposeGeneral` vs `PurposeCredential`), and SHA-256 hashing.
 
 ### 5. Plugin Host & Linux Sandbox (S12)
-Scans plugin directories, parses manifests, rejects invalid plugin types and semantic versions, rejects `Discovery` and `Capture` plugins declaring `network: true`, normalizes filesystem paths, allocates fresh isolated Policy slices, and applies ADR-0012 resource limit defaults (512MB RAM, 10GB file size). Under Linux, executes plugins inside an OS-level sandbox combining Landlock filesystem isolation, seccomp BPF syscall filtering (`clone3` denied with `ENOSYS`, namespace clones and `mount` denied with `EPERM`), PID and network namespaces (`loopback DOWN`), and `PR_SET_NO_NEW_PRIVS`.
+Scans plugin directories, parses manifests, rejects invalid plugin types and semantic versions, rejects `Discovery` and `Capture` plugins declaring `network: true`, normalizes filesystem paths, allocates fresh isolated Policy slices, and applies ADR-0012 resource limit defaults (RLIMIT_AS disabled, 10GB file size). Under Linux, executes plugins inside an OS-level sandbox combining Landlock filesystem isolation, seccomp BPF syscall filtering (`clone3` denied with `ENOSYS`, namespace clones and `mount` denied with `EPERM`), PID and network namespaces (`loopback DOWN`), and `PR_SET_NO_NEW_PRIVS`.
 
 ### What you CANNOT do today
 - Run `telos backup`, `telos restore`, `telos discover`, or any CLI command (CLI Shell argument parsing is not implemented).
@@ -473,7 +472,7 @@ Scans plugin directories, parses manifests, rejects invalid plugin types and sem
 - Validate plugin digital signatures or TOFU key records (Trust Phase is not implemented).
 - Execute plugins requiring external subprocesses under the Linux sandbox (subprocess resolution ADR-0007 is not implemented).
 - Capture artifacts to staging directories (staging lifecycle ADR-0013 is not implemented).
-- Run compiled Go plugins under default resource limits (OPEN ISSUE: minimal compiled Go fixture fails to start under ADR-0012 default RLIMIT_AS of 512 MB with "fatal error: failed to reserve page summary memory", blocking the APT plugin; pending investigation).
+- Run compiled Go plugins under the default resource limits; RLIMIT_AS is disabled by default after the completed empirical investigation. Explicit positive RLIMIT_AS overrides remain available.
 
 ---
 
@@ -482,7 +481,7 @@ Scans plugin directories, parses manifests, rejects invalid plugin types and sem
 The remaining work is structured in strict dependency order:
 
 ```
-[RLIMIT_AS Investigation & ADR-0012 Amendment]
+[RLIMIT_AS Investigation & ADR-0012 Amendment — DONE]
                │
                ▼
 [S0: Subprocess Security Analysis Review]
@@ -510,7 +509,7 @@ The remaining work is structured in strict dependency order:
 Item B is complete. The remaining dependency order is:
 
 ```text
-RLIMIT_AS Investigation & ADR-0012 Amendment
+RLIMIT_AS Investigation & ADR-0012 Amendment — DONE
                │
                ▼
 S0: Subprocess Security Analysis Review
@@ -531,10 +530,9 @@ E3: CaptureResponse.artifact_location Validation
 S1: CLI Shell & S2: Orchestrator Skeleton
 ```
 
-### 1. RLIMIT_AS Investigation and ADR-0012 Amendment (Pending)
-- **Status:** Open blocker for the APT plugin (pending investigation).
-- **Issue:** A minimal compiled Go fixture fails to start under the ADR-0012 default `RLIMIT_AS` of 512 MB (`fatal error: failed to reserve page summary memory`). Source: `TestDefaultMemoryBytesEnforcedLinux` in `internal/plugin/host_test.go`, which logs `"REPORTED"` and still passes. State: the test does not assert startup, ADR-0012 has not been amended, and the ADR value was intentionally not changed in code (`internal/plugin/host.go:defaultMemoryBytes = 512 * 1024 * 1024`). The investigation and any ADR-0012 amendment have not been done (pending investigation).
-- **Requirement:** Investigate Go runtime virtual address space reservation requirements versus resident set size (RSS); earlier measurements were inconclusive. Formally amend ADR-0012 to establish a viable memory limit before modifying the code constant.
+### 1. RLIMIT_AS Investigation and ADR-0012 Amendment (Complete)
+- **Status:** Complete. The empirical report is archived at `docs/reports/2026-09-25-RLIMIT_AS-empirical-investigation.md`, and ADR-0012 now sets `MemoryBytes = 0` by default.
+- **Decision:** Zero and negative values disable RLIMIT_AS; positive values remain explicit overrides. Physical-memory containment is deferred to the V2 cgroup architecture at `docs/reports/2026-09-25-V2-cgroup-memory-architecture-proposal.md`.
 
 ### 3. Item S0: Subprocess Security Analysis Review
 - **Requirement:** Review and complete the subprocess threat analysis (`docs/reports/`) before implementing Item D.

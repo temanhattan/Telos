@@ -4,11 +4,13 @@ Plugin Resource Limits and Process Isolation Defaults
 
 # Status
 
-Accepted (Revised 2026-09-09)
+Accepted (Revised 2026-09-30)
 
 # Context
 
-The V1 sandbox utilizes `prlimit` on Linux to enforce resource limits (`RLIMIT_AS`, `RLIMIT_NPROC`, `RLIMIT_FSIZE`). However, the API documentation and Manifest Schema did not specify default numeric values for these limits, leaving the Host implementation to pass zeroes, which effectively disabled the limits (resulting in dead code).
+The V1 sandbox utilizes `prlimit` on Linux to enforce selected resource limits
+(`RLIMIT_NPROC`, `RLIMIT_FSIZE`, and optionally `RLIMIT_AS`). The API documentation
+and Manifest Schema must define the zero-value semantics for each limit explicitly.
 
 A malicious or buggy plugin could consume excessive CPU, memory, or disk space, degrading host performance (Threat D-02). We must define standard V1 numeric defaults. We must not invent random defaults at implementation time without architectural consent.
 
@@ -64,13 +66,24 @@ To prevent category errors during design and implementation, the sandbox disting
 
 3. **Standard V1 Defaults for Other Resources:**
    Existing V1 documentation (`05_Plugin_API.md`, `03_Threat_Model.md`) specifies resource limits without fixed values. The following defaults are accepted for V1:
-   - `MemoryBytes` (`RLIMIT_AS`): **512 MB** (536,870,912 bytes). Limits the virtual address space of the plugin and child processes, bounding runaway memory allocations.
+   - `MemoryBytes` (`RLIMIT_AS`): **0 (disabled by default)**. A positive value remains an optional administrative or plugin-specific virtual-address-space override. V1 does not provide physical-memory (RSS) containment for invocations without an explicit override.
    - `MaxFileSizeBytes` (`RLIMIT_FSIZE`): **10 GB** (10,737,418,240 bytes). Accommodates large backup artifacts during Capture, while bounding disk exhaustion.
    - `OutputLimit` (stdout): **4 MB**. Enforced via `limitedBuffer` to bound JSON response deserialization in memory.
    - `StderrLimit`: **1 MB**. Enforced via `limitedBuffer` to prevent unhandled error streams from causing host OOM.
 
-4. **Application:**
+4. **Memory limit semantics:**
+   - `MemoryBytes == 0` disables `RLIMIT_AS`.
+   - Negative `MemoryBytes` values normalize to `0` and therefore also disable `RLIMIT_AS`.
+   - Positive `MemoryBytes` values are preserved and applied as explicit administrative or plugin-manifest overrides.
+   - The Linux sandbox skips `setrlimit(RLIMIT_AS, ...)` when the policy value is non-positive.
+
+5. **Application:**
    The Plugin Host must populate the `sandbox.Policy` with these configuration values on every invocation.
+
+The default change is based on the archived empirical investigation in
+`docs/reports/2026-09-25-RLIMIT_AS-empirical-investigation.md` and the V2 cgroup
+memory architecture proposal in
+`docs/reports/2026-09-25-V2-cgroup-memory-architecture-proposal.md`.
 
 # Consequences
 
@@ -79,8 +92,14 @@ To prevent category errors during design and implementation, the sandbox disting
 - Prevents brittle, environment-dependent crashes of Go plugins and package managers on developer workstations and multi-core machines.
 - Maintains a clean, dependency-free V1 architecture without requiring cgroup delegation setup.
 - Retains robust defense-in-depth against runaway processes via process group `SIGKILL` on timeout, PID namespace teardown on exit, and strict execution deadlines.
-- Activates valid resource constraints (`RLIMIT_AS`, `RLIMIT_FSIZE`, output caps) to mitigate Threat D-02.
+- Activates valid resource constraints (`RLIMIT_FSIZE`, output caps, and explicit
+  `RLIMIT_AS` overrides) to mitigate Threat D-02.
 
 **Trade-offs:**
 - During the execution window prior to timeout expiry, V1 does not have an instantaneous task-count ceiling; runaway process generation under root or unconstrained non-root can consume host PID slots until the execution times out and is torn down.
+- V1 does not provide physical-memory (RSS) containment for plugins using the
+  default `MemoryBytes = 0`. Wall-clock timeout, output bounds, namespace
+  teardown, and `RLIMIT_FSIZE` remain active protections, but none of them
+  bounds instantaneous RSS. Physical-memory containment is deferred to the V2
+  cgroup v2 memory architecture.
 - True, instantaneous task-count bounding is deferred to V2 cgroups v2 integration.

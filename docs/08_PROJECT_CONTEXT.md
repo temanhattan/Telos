@@ -165,7 +165,8 @@ Each plugin invocation is a fresh subprocess executing over a versioned JSON-ser
 - **Linux Namespaces:** Creates a private PID namespace (restricting process visibility and enabling clean subtree teardown) and an unshared network namespace with `loopback DOWN` (blocking network access).
 - **Privilege Confinement:** Sets `PR_SET_NO_NEW_PRIVS` to prevent privilege escalation via setuid binaries.
 - **Resource Limits via `HostOptions` (ADR-0012):** Normalized options pass into `sandbox.Policy`:
-  - Memory: 512 MB virtual address space ceiling (`RLIMIT_AS`) default.
+  - Memory: `RLIMIT_AS` disabled by default (`MemoryBytes = 0`); positive
+    `MemoryBytes` values remain explicit virtual-address-space overrides.
   - File size: 10 GB file creation ceiling (`RLIMIT_FSIZE`) default.
   - Task count: Process limits via `RLIMIT_NPROC` default to 0 (disabled in V1; true task bounding deferred to V2 cgroups v2).
 - **Offline Network Rejection:** Manifests declaring `permissions.network: true` for `Discovery` and `Capture` plugins are strictly rejected at load time in `host.go:load()`. Restore plugins default to `network: false`, but may request network access where explicitly justified.
@@ -176,7 +177,13 @@ Each plugin invocation is a fresh subprocess executing over a versioned JSON-ser
 #### Planned / Not Yet Implemented
 - **Subprocess Authorization (ADR-0007):** Will validate manifest `subprocess` names (rejecting slashes), resolve host paths via `exec.LookPath`, append resolved binaries to `Policy.Executables`, and automatically grant Landlock read+execute permissions to system library paths (`/lib`, `/lib64`, `/usr/lib`, `/usr/lib64`, `/etc/alternatives`).
 - **Capture Staging Lifecycle (ADR-0013):** Core will allocate cryptographically random temporary directories under `/var/lib/telos/staging/capture-<uuid>` (mode 0700), pass `staging_location` in `CaptureRequest`, append staging paths to `Policy.WritePaths` and `Policy.ReadPaths`, validate that returned artifacts are strictly relative subpaths within staging, and ensure unconditional staging cleanup.
-- **RLIMIT_AS Amendment:** ADR-0012 will be formally amended to account for Go 64-bit runtime virtual address space reservation requirements (investigation pending; earlier measurements were inconclusive) before adjusting the default memory limit in code, unblocking compiled Go plugins and the APT plugin.
+- **RLIMIT_AS Decision:** The empirical investigation in
+  `docs/reports/2026-09-25-RLIMIT_AS-empirical-investigation.md` showed that
+  the 512 MB default could prevent Go runtime startup and does not represent
+  physical RSS. ADR-0012 now disables RLIMIT_AS by default; positive values remain
+  explicit overrides, while physical-memory containment is deferred to the V2
+  cgroup architecture in
+  `docs/reports/2026-09-25-V2-cgroup-memory-architecture-proposal.md`.
 
 ---
 

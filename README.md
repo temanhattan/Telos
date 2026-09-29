@@ -78,7 +78,7 @@ The security model isolates untrusted plugin code and protects system integrity:
 - **Seccomp-BPF Syscall Filtering:** Denies `clone3` with `ENOSYS`, container/namespace clones (`CLONE_NEWUSER`, etc.) with `EPERM`, and blocks `mount`, `unshare`, and `setns` with `EPERM`.
 - **Linux Namespaces:** Isolates child processes into private PID namespaces and unshared network namespaces with `loopback DOWN`.
 - **Privilege Confinement:** Sets `PR_SET_NO_NEW_PRIVS` prior to plugin execution.
-- **Resource Limits (`prlimit`):** Enforces ADR-0012 limits: 512 MB virtual memory (`RLIMIT_AS`), 10 GB maximum file size (`RLIMIT_FSIZE`), and task limits (`RLIMIT_NPROC` 0 / disabled).
+- **Resource Limits (`prlimit`):** Enforces ADR-0012 limits: `RLIMIT_AS` disabled by default with explicit positive overrides supported, 10 GB maximum file size (`RLIMIT_FSIZE`), and task limits (`RLIMIT_NPROC` 0 / disabled).
 - **Network Invariants:** Rejects `Discovery` and `Capture` plugins declaring `network: true` at manifest load time.
 - **Policy Slice Isolation:** Defensively allocates and clones `Policy` path slices to prevent registry aliasing.
 - **Bounded Stderr:** Direct `Invoke()` and sandbox execution paths use `sandbox.BoundedStderr` with the configured limit. Item B was completed in commit `3f1a55f`.
@@ -171,8 +171,7 @@ Remaining foundational items in strict dependency order (from [docs/99_Project_S
 
 Item B — bounded stderr on direct and sandbox paths — is completed in commit `3f1a55f`.
 
-1. **RLIMIT_AS Investigation & ADR-0012 Amendment (pending):** Resolve minimal compiled Go fixture startup failure (`fatal error: failed to reserve page summary memory` under 512 MB virtual memory cap; blocks APT plugin).
-2. **Item S0:** Subprocess security analysis review.
-3. **Item D:** Subprocess permission handling per ADR-0007 (basename validation, LookPath, Landlock library grants).
-4. **Items E1, E2, E3:** Capture staging lifecycle per ADR-0013 (staging allocator, request wiring, artifact subpath validation).
-5. **Subsystem Milestones:** CLI Shell (S1, resolving TD-1 placeholder), Orchestrator (S2), Discovery Engine (S3), Capture Engine (S7), and Storage (S8).
+1. **Item S0:** Subprocess security analysis review.
+2. **Item D:** Subprocess permission handling per ADR-0007 (basename validation, LookPath, Landlock library grants).
+3. **Items E1, E2, E3:** Capture staging lifecycle per ADR-0013 (staging allocator, request wiring, artifact subpath validation).
+4. **Subsystem Milestones:** CLI Shell (S1, resolving TD-1 placeholder), Orchestrator (S2), Discovery Engine (S3), Capture Engine (S7), and Storage (S8).
