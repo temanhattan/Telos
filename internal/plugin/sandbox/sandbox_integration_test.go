@@ -526,3 +526,62 @@ func main() {
 		})
 	}
 }
+
+func TestLinuxSandboxExplicitMemoryLimitEnforced(t *testing.T) {
+	tmpDir := t.TempDir()
+	pluginSrc := filepath.Join(tmpDir, "plugin_memory.go")
+	pluginCode := `package main
+
+import "os"
+
+func main() {
+	data := make([]byte, 100*1024*1024)
+	for i := 0; i < len(data); i += 4096 {
+		data[i] = 1
+	}
+	_, _ = os.Stdout.Write([]byte("{\"status\":\"unexpected-success\"}\n"))
+}
+`
+	if err := os.WriteFile(pluginSrc, []byte(pluginCode), 0644); err != nil {
+		t.Fatal(err)
+	}
+	pluginExe := filepath.Join(tmpDir, "plugin_memory")
+	if output, err := exec.Command("go", "build", "-o", pluginExe, pluginSrc).CombinedOutput(); err != nil {
+		t.Fatalf("failed to build memory fixture: %v\n%s", err, output)
+	}
+
+	telosExe := filepath.Join(tmpDir, "telos")
+	if output, err := exec.Command("go", "build", "-o", telosExe, "telos/cmd/telos").CombinedOutput(); err != nil {
+		t.Fatalf("failed to build telos CLI: %v\n%s", err, output)
+	}
+
+	probeCmd := exec.Command("true")
+	probeCmd.SysProcAttr = &syscall.SysProcAttr{
+		Cloneflags: syscall.CLONE_NEWPID | syscall.CLONE_NEWNET,
+	}
+	if probeErr := probeCmd.Run(); probeErr != nil {
+		if errors.Is(probeErr, syscall.EPERM) || errors.Is(probeErr, os.ErrPermission) {
+			t.Skipf("Skipping integration test: CI environment lacks capabilities for CLONE_NEWPID and CLONE_NEWNET (EPERM)")
+		}
+		t.Fatalf("Unexpected error during namespace capability probe: %v", probeErr)
+	}
+
+	sb, err := sandbox.NewLinuxSandbox(telosExe)
+	if err != nil {
+		t.Skipf("Sandbox not supported on this kernel: %v", err)
+	}
+	const explicitLimit = int64(768 * 1024 * 1024)
+	policy := &sandbox.Policy{
+		Executables: []string{pluginExe},
+		ReadPaths:   []string{tmpDir},
+		TimeoutSec:  10,
+		OutputLimit: 4096,
+		StderrLimit: 4096,
+		MemoryBytes: explicitLimit,
+	}
+
+	result, err := sb.Exec(context.Background(), pluginExe, tmpDir, nil, policy)
+	if err == nil {
+		t.Fatalf("expected explicit RLIMIT_AS limit of %d bytes to reject the memory fixture; stdout=%q", explicitLimit, result.Stdout)
+	}
+}

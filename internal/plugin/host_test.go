@@ -595,15 +595,15 @@ func (s *reexecSandbox) Exec(ctx context.Context, executable string, dir string,
 
 func TestNewHostDefaultsMatchADR0012(t *testing.T) {
 	// ADR-0012 §3 specifies:
-	// - MemoryBytes: 512 MB (536,870,912 bytes)
+	// - MemoryBytes: 0 (RLIMIT_AS disabled)
 	// - MaxFileSizeBytes: 10 GB (10,737,418,240 bytes)
 	// - OutputLimit: 4 MB (4,194,304 bytes)
 	// ADR-0012 §1 specifies:
 	// - MaxProcesses: 0 (disabled / unconstrained)
 	h := New(Options{})
 
-	if h.opts.MemoryBytes != 536870912 {
-		t.Errorf("expected MemoryBytes default 536870912, got %d", h.opts.MemoryBytes)
+	if h.opts.MemoryBytes != 0 {
+		t.Errorf("expected MemoryBytes default 0 (disabled), got %d", h.opts.MemoryBytes)
 	}
 	if h.opts.MaxFileSizeBytes != 10737418240 {
 		t.Errorf("expected MaxFileSizeBytes default 10737418240, got %d", h.opts.MaxFileSizeBytes)
@@ -628,8 +628,8 @@ func TestNewHostDefaultsMatchADR0012(t *testing.T) {
 	}
 	pol := h.buildPolicy(&p)
 
-	if pol.MemoryBytes != 536870912 {
-		t.Errorf("expected policy MemoryBytes 536870912, got %d", pol.MemoryBytes)
+	if pol.MemoryBytes != 0 {
+		t.Errorf("expected policy MemoryBytes 0 (disabled), got %d", pol.MemoryBytes)
 	}
 	if pol.MaxFileSizeBytes != 10737418240 {
 		t.Errorf("expected policy MaxFileSizeBytes 10737418240, got %d", pol.MaxFileSizeBytes)
@@ -650,7 +650,7 @@ func TestNewHostDefaultsMatchADR0012(t *testing.T) {
 
 func TestResourceLimitZeroValueSemantics(t *testing.T) {
 	// Zero values in Options:
-	// - MemoryBytes == 0 => default (536,870,912)
+	// - MemoryBytes == 0 => disabled
 	// - MaxFileSizeBytes == 0 => default (10,737,418,240)
 	// - MaxProcesses == 0 => disabled / default (0)
 	// - StderrLimit == 0 => default (1,048,576)
@@ -661,8 +661,8 @@ func TestResourceLimitZeroValueSemantics(t *testing.T) {
 		StderrLimit:      0,
 	})
 
-	if h.opts.MemoryBytes != 536870912 {
-		t.Errorf("expected MemoryBytes == 0 to normalize to default 536870912, got %d", h.opts.MemoryBytes)
+	if h.opts.MemoryBytes != 0 {
+		t.Errorf("expected MemoryBytes == 0 to remain disabled, got %d", h.opts.MemoryBytes)
 	}
 	if h.opts.MaxFileSizeBytes != 10737418240 {
 		t.Errorf("expected MaxFileSizeBytes == 0 to normalize to default 10737418240, got %d", h.opts.MaxFileSizeBytes)
@@ -681,8 +681,8 @@ func TestResourceLimitZeroValueSemantics(t *testing.T) {
 	}
 	pol := h.buildPolicy(&p)
 
-	if pol.MemoryBytes != 536870912 {
-		t.Errorf("expected policy MemoryBytes 536870912, got %d", pol.MemoryBytes)
+	if pol.MemoryBytes != 0 {
+		t.Errorf("expected policy MemoryBytes 0 (disabled), got %d", pol.MemoryBytes)
 	}
 	if pol.MaxFileSizeBytes != 10737418240 {
 		t.Errorf("expected policy MaxFileSizeBytes 10737418240, got %d", pol.MaxFileSizeBytes)
@@ -694,7 +694,7 @@ func TestResourceLimitZeroValueSemantics(t *testing.T) {
 
 func TestResourceLimitNegativeValueSemantics(t *testing.T) {
 	// Negative values in Options:
-	// - MemoryBytes < 0 => default (536,870,912)
+	// - MemoryBytes < 0 => disabled (0)
 	// - MaxFileSizeBytes < 0 => default (10,737,418,240)
 	// - MaxProcesses < 0 => 0 (disabled)
 	// - StderrLimit < 0 => default (1,048,576)
@@ -705,8 +705,8 @@ func TestResourceLimitNegativeValueSemantics(t *testing.T) {
 		StderrLimit:      -1,
 	})
 
-	if h.opts.MemoryBytes != 536870912 {
-		t.Errorf("expected MemoryBytes < 0 to normalize to default 536870912, got %d", h.opts.MemoryBytes)
+	if h.opts.MemoryBytes != 0 {
+		t.Errorf("expected MemoryBytes < 0 to normalize to 0 (disabled), got %d", h.opts.MemoryBytes)
 	}
 	if h.opts.MaxFileSizeBytes != 10737418240 {
 		t.Errorf("expected MaxFileSizeBytes < 0 to normalize to default 10737418240, got %d", h.opts.MaxFileSizeBytes)
@@ -725,8 +725,8 @@ func TestResourceLimitNegativeValueSemantics(t *testing.T) {
 	}
 	pol := h.buildPolicy(&p)
 
-	if pol.MemoryBytes != 536870912 {
-		t.Errorf("expected policy MemoryBytes 536870912, got %d", pol.MemoryBytes)
+	if pol.MemoryBytes != 0 {
+		t.Errorf("expected policy MemoryBytes 0 (disabled), got %d", pol.MemoryBytes)
 	}
 	if pol.MaxFileSizeBytes != 10737418240 {
 		t.Errorf("expected policy MaxFileSizeBytes 10737418240, got %d", pol.MaxFileSizeBytes)
@@ -896,7 +896,7 @@ func main() {
 	}
 }
 
-func TestDefaultMemoryBytesEnforcedLinux(t *testing.T) {
+func TestDefaultMemoryLimitDisabledLinux(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("RLIMIT_AS enforcement is Linux-only")
 	}
@@ -942,7 +942,7 @@ func main() {
 	}
 
 	sb := &reexecSandbox{helperExe: telosExe}
-	// Use default Options (default MemoryBytes is 512 MB per ADR-0012)
+	// Use default Options; RLIMIT_AS is disabled by default per ADR-0012.
 	h := New(Options{
 		PluginDirs: []string{tmpDir},
 		Sandbox:    sb,
@@ -954,8 +954,7 @@ func main() {
 
 	resp, err := h.InvokeSandboxed(context.Background(), "io.telos.mem.test", map[string]string{})
 	if err != nil {
-		t.Logf("REPORTED: minimal compiled Go fixture failed under 512 MB RLIMIT_AS default: %v", err)
-		return
+		t.Fatalf("expected compiled Go fixture to start with RLIMIT_AS disabled: %v", err)
 	}
 	if string(resp) != `{"status":"success"}` {
 		t.Errorf("unexpected response: %s", string(resp))

@@ -32,8 +32,11 @@ const defaultStderrLimit int64 = 1 << 20
 // Default resource limits established by ADR-0012.
 // Defaults live in ONE place, used only by New.
 const (
-	// defaultMemoryBytes is the maximum virtual address space (RLIMIT_AS) per ADR-0012 §3: 512 MB.
-	defaultMemoryBytes int64 = 512 * 1024 * 1024 // 536,870,912 bytes
+	// defaultMemoryBytes is 0 (RLIMIT_AS disabled) per ADR-0012's V1 decision
+	// to defer physical memory containment to the V2 cgroup architecture. See
+	// docs/reports/2026-09-25-RLIMIT_AS-empirical-investigation.md and
+	// docs/reports/2026-09-25-V2-cgroup-memory-architecture-proposal.md.
+	defaultMemoryBytes int64 = 0
 
 	// defaultMaxFileSizeBytes is the maximum file size (RLIMIT_FSIZE) per ADR-0012 §3: 10 GB.
 	defaultMaxFileSizeBytes int64 = 10 * 1024 * 1024 * 1024 // 10,737,418,240 bytes
@@ -55,8 +58,9 @@ type Options struct {
 	// run without sandbox enforcement (direct subprocess execution).
 	Sandbox sandbox.Sandbox
 
-	// MemoryBytes is the maximum virtual address space (RLIMIT_AS) in bytes.
-	// 0 or negative defaults to 512 MB per ADR-0012 §3.
+	// MemoryBytes is the optional maximum virtual address space (RLIMIT_AS) in
+	// bytes. Zero or negative disables RLIMIT_AS; positive values are explicit
+	// administrative overrides.
 	MemoryBytes int64
 
 	// MaxFileSizeBytes is the maximum file size (RLIMIT_FSIZE) in bytes.
@@ -131,7 +135,7 @@ func New(opts Options) *Host {
 	if opts.Logger == nil {
 		opts.Logger = log.New(log.InfoLevel, io.Discard)
 	}
-	if opts.MemoryBytes <= 0 {
+	if opts.MemoryBytes < 0 {
 		opts.MemoryBytes = defaultMemoryBytes
 	}
 	if opts.MaxFileSizeBytes <= 0 {
