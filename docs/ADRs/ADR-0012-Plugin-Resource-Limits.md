@@ -60,6 +60,7 @@ To prevent category errors during design and implementation, the sandbox disting
 2. **Cgroups v2 (`pids.max`) as the Architectural Boundary (Deferred to V2):**
    - The cgroups v2 `pids` controller (`pids.max`) is the proper OS primitive to enforce true per-plugin task-count isolation independent of UID and capable of constraining root.
    - Consistent with the V2 roadmap and Threat Model item FSI-9, cgroups v2 integration is designated as **V2 / future architecture**. It is not required for V1 to prevent adding host system prerequisites (cgroup delegation, systemd integration, root cgroupfs writes).
+   A detailed hybrid architecture proposal for this V2 work is recorded in docs/reports/2026-09-25-V2-cgroup-memory-architecture-proposal.md.
 
 3. **Standard V1 Defaults for Other Resources:**
    Existing V1 documentation (`05_Plugin_API.md`, `03_Threat_Model.md`) specifies resource limits without fixed values. The following defaults are accepted for V1:
