@@ -58,22 +58,22 @@ openat(..., "/usr/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
 
 `dpkg-query` additionally loads `libmd.so.0`; `dpkg-query -W dpkg` later tried `/var/lib/dpkg/status`, where the test policy correctly received `EACCES`. Startup itself did not attempt `/proc` or `/sys` reads: `strace -e trace=openat /usr/bin/true | grep -E '/proc|/sys'` produced no matches. This is evidence for these binaries and this Ubuntu image, not every optional library/plugin path.
 
-Minimum observed Landlock rights for ordinary dynamic startup are `EXECUTE|READ_FILE` on the requested binary, `EXECUTE` on its ELF interpreter, and `READ_FILE` on the needed shared objects. An isolated follow-up showed that `EXECUTE` without `READ_FILE` on the main binary still yielded `execve = -1 EACCES` even when the libraries and interpreter were authorized; making the interpreter rule `EXECUTE`-only still succeeded once the main binary had both rights. The repository implementation grants `READ_FILE|READ_DIR` on read paths and `READ_FILE|EXECUTE` on executable files. `/etc/ld.so.cache` was opened for read by the loader. It is not strictly required for this tested startup: with cache access denied, the loader fell back to default library paths and successfully found the shared objects. `/etc/ld.so.preload` was probed but absent (`ENOENT`).
+Minimum observed Landlock rights for ordinary dynamic startup are `EXECUTE|READ_FILE` on the requested binary, `EXECUTE|READ_FILE` on its ELF interpreter, and `READ_FILE` on the needed shared objects. An isolated follow-up showed that `EXECUTE` without `READ_FILE` on the main binary still yielded `execve = -1 EACCES` even when the libraries and interpreter were authorized; the interpreter `EXECUTE`-only split returned EACCES; adding `READ_FILE` succeeded without any library-directory read rule. The repository implementation grants `READ_FILE|READ_DIR` on read paths and `READ_FILE|EXECUTE` on executable files. `/etc/ld.so.cache` was opened for read by the loader. It is not strictly required for this tested startup: with cache access denied, the loader fell back to default library paths and successfully found the shared objects. `/etc/ld.so.preload` was probed but absent (`ENOENT`).
 
 The static contrast was a small `gcc -static` ELF. With only `EXECUTE` on that file, `execve("/tmp/adr0007-static-true", ...) = 0` and it exited 0; there was no interpreter or shared-library open. The file was built in WSL for this experiment and removed afterward.
 
 ## 2. Policy matrix
 
-The exact cumulative matrix was run with `strace -f -e trace=execve,openat` against `/usr/bin/true`:
+The cumulative matrix was run with `strace -f -e trace=execve,openat` against `/usr/bin/true`. The isolated interpreter split removes all broad library-directory read grants; `/lib64/ld-linux-x86-64.so.2` resolves to `/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2`.
 
 | Variant | Rights added | Result/evidence |
 |---|---|---|
 | (a) | Exact main binary `EXECUTE|READ_FILE`; no library/interpreter grants | `execve("/usr/bin/true", ...) = -1 EACCES`; exit 126. The kernel cannot execute the ELF interpreter without its execute grant. |
 | (b) | (a) + `READ_FILE|READ_DIR` on `/lib*`, `/usr/lib*`, and `/etc` | Same `execve = -1 EACCES`; exit 126. Library reads do not substitute for interpreter execute. |
-| (c) | (b) + `EXECUTE` on `/lib64/ld-linux-x86-64.so.2` (the resolved file) | `execve("/usr/bin/true", ...) = 0`; cache and libc opens succeed; exit 0. |
+| (c) | (b) + `EXECUTE|READ_FILE` on the resolved interpreter file | `execve("/usr/bin/true", ...) = 0`; cache and libc opens succeed; exit 0. |
 | (d) | (c) + `READ_FILE|READ_DIR|EXECUTE` on `/lib`, `/lib64`, `/usr/lib`, `/usr/lib64` | Startup succeeds, exit 0. This broad execute grant is unnecessary for the observed startup. |
 
-For all variants, the exact executable file has `EXECUTE|READ_FILE`; the experiment shows the binary's `READ_FILE` is required on this ABI. The interpreter rule in (c) was separately tested with `EXECUTE` only and succeeded. If (c) is tested without (b), `execve` succeeds but the loader reports `libc.so.6: cannot open shared object file`; strace shows `openat(...libc.so.6...) = -1 EACCES` and exit 127. This isolates the interpreter grant from library read access.
+For all variants, the exact executable file has `EXECUTE|READ_FILE`; the experiment shows the binary's `READ_FILE` is required on this ABI. The interpreter rule in (c) was isolated without library-directory reads: `EXECUTE` only returned `EACCES`; `EXECUTE|READ_FILE` succeeded. If (c) is tested without (b), `execve` succeeds but the loader reports `libc.so.6: cannot open shared object file`; strace shows `openat(...libc.so.6...) = -1 EACCES` and exit 127. This isolates the interpreter grant from library read access.
 
 ## 3. Symlinks
 
@@ -83,49 +83,22 @@ With a rule opened on `/usr/bin/true`, executing `/usr/bin/gnutrue` succeeded (`
 
 ## 4. Directory execute authority and loader trick
 
-**Unlisted helper.** With only execute/read grants on the library directories (no file rule for the target), the probe invoked `/usr/lib/apt/methods/http`:
+**Unlisted helper.** With execute/read grants on library directories but no target file rule, `/usr/lib/apt/methods/http` started (`execve = 0`) and emitted its capabilities protocol, then exited 100. This demonstrates executable-allowlist expansion. It does not demonstrate new containment authority: the child inherits the same Landlock and seccomp domain as the plugin.
 
-```text
-execve("/usr/lib/apt/methods/http", ...) = 0
-100 Capabilities
-Send-URI-Encoded: true
-Send-Config: true
-Pipeline: true
-Version: 1.2
-+++ exited with 100 ++++
-```
+**LD_PRELOAD and direct loader.** A C probe wrote a shared object after Landlock into the readable/writable staging path and ran authorized `/usr/bin/true` with `LD_PRELOAD`. The constructor ran without an EXECUTE grant on the staged file. A separate PIE test wrote a PIE after Landlock and invoked `ld.so /tmp/adr0007-stage/payload.so`; it printed `LOADER_PIE_CODE_RAN` and exited 33. `strace` showed `execve(ld.so)=0`, then the loader opened the staged PIE for reading; it did not call `execve` on the staged PIE. Thus the proper ld.so PIE route bypasses Landlock's EXECUTE check.
 
-Exit 100 is this APT method’s protocol response, and proves the unlisted executable started. The same broad directory rule allowed the ELF interpreter and libraries to load. Execute on a library directory therefore grants execution to unrelated executable files below it, including APT method helpers. This directly disproves the ADR-0007 trade-off statement.
+The project's seccomp filter defaults to ALLOW and source inspection shows it does not block `mmap`/`mprotect` or `execve`/`execveat`. The requested real `linuxSandbox.Exec` helper/preload/ld.so fixture attempts each stopped before fixture startup with `plugin failed: exit status 111 (stderr: permission denied)`. Filtered outcomes remain unverified in this WSL environment.
 
-**LD_PRELOAD test.** The probe wrote a tiny ELF shared object into a `WritePaths`-like directory after Landlock restriction. That directory had the same rights as this repository’s `rwAccess`: all handled filesystem rights except `EXECUTE`, which includes `READ_FILE`. The payload constructor exits with status 42. The probe then ran authorized `/usr/bin/true` with `LD_PRELOAD` pointing at the written file.
-
-With the cumulative (c) grants plus that read/write staging path, strace showed:
-
-```text
-execve("/usr/bin/true", ...) = 0
-openat(..., "/tmp/adr0007-stage/payload.so", O_RDONLY|O_CLOEXEC) = 3
-mmap(..., PROT_READ|PROT_EXEC, ...) = ...
-+++ exited with 42 ++++
-```
-
-With (d) the same payload also ran and exited 42. Variants (a) and (b) could not start the dynamic target: the kernel denied its missing interpreter with `execve = -1 EACCES`. A separate direct `ld.so /path/to/payload.so` attempt was denied when the loader tried `execve(payload.so) = -1 EACCES`; that invocation alone is not the bypass. The demonstrated route is an authorized dynamic binary loading an unexecuted shared object via `LD_PRELOAD`.
-
-This probe did not install the project’s seccomp filter. Source inspection is decisive for the filter question: `buildSeccompFilter()` returns ALLOW by default and only denies its enumerated calls; it neither denies `mmap`/`mprotect` nor restricts `execve`/`execveat`. The traced loader’s `openat` and executable `mmap` operations are not blocked by the existing filter. **The current seccomp filter does not close this gap.**
-
-This route requires the written file to be readable after creation. The current `sandbox_linux.go` write rule includes `READ_FILE` and ABI read rights (`fsAccess &^ EXECUTE`). Any future policy that combines readable writable staging with a dynamic executable/interpreter can reproduce it. Merely withholding `EXECUTE` on the payload is insufficient.
+**Rights available to loaded code.** Both the LD_PRELOAD and PIE payloads measured `/etc/shadow` open as EACCES; AF_INET socket creation succeeded; mount returned EPERM; unshare succeeded in this no-seccomp probe; `PR_GET_NO_NEW_PRIVS=1`, `PR_GET_SECCOMP=0`. The payloads gained no Landlock authority compared with plugin code. These are executable-allowlist fidelity gaps, not demonstrated containment escapes. The current write rule includes READ_FILE (`fsAccess &^ EXECUTE`); ADR-0013 staging pairs readable and writable access, so document this residual under that staging design.
 
 ## 5. Inheritance and scope
 
-The Landlock domain is inherited across `fork`/`clone` and `exec`; it is not reset per child. A shell parent was given a file execute rule for `/usr/bin/bash` and library-directory execute. Its trace showed:
+Landlock is inherited across fork/clone and exec. The shell trace showed the unlisted APT helper starting while an ungranted `/usr/bin/true` remained denied. Descendants retain caller restrictions. Subprocess declarations may define intended helpers, but directory EXECUTE expands that manifest allowlist without adding demonstrated kernel rights.
 
-```text
-execve("/usr/bin/bash", ...) = 0
-clone(..., SIGCHLD, ...) = 437
-[pid 437] execve("/usr/lib/apt/methods/http", ...) = 0
-execve("/usr/bin/true", ...) = -1 EACCES (Permission denied)
-```
+### dpkg-query read set
 
-The child helper inherited the same grants, including the broad library-directory execute authority; an ungranted `/usr/bin/true` remained denied. Consequently, subprocess declarations describe the complete descendant process tree, not just the top-level command. If `apt` needs to invoke `dpkg`, both commands and any other intended transitive executables must be authorized, or an explicitly designed broker/launcher must mediate that graph. Directory-wide execute silently bypasses this manifest scope.
+Under a traced Landlock policy, `dpkg-query -W dpkg` successfully read `/var/lib/dpkg/status`, `/var/lib/dpkg/updates/`, `/var/lib/dpkg/triggers/File`, and `/var/lib/dpkg/triggers/Unincorp`. Startup also opened `libmd.so.0`, `libc.so.6`, locale data under `/usr/lib/locale/C.utf8`, and `/usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache`. Absent locale candidates and `/var/lib/dpkg/arch` returned ENOENT. `/usr/share/dpkg` and `/etc/dpkg` were not opened for content in this invocation. A narrow database policy can grant exact status, updates, and trigger paths; a read-only `/var/lib/dpkg` grant is simpler. Parsing status directly needs only one exact READ_FILE grant on `/var/lib/dpkg/status`, with no parent-directory read grant.
+
 
 ## 6. Name traversal and PATH
 
@@ -160,44 +133,43 @@ For each declared subprocess and its declared transitive children:
 | Path class | Minimum right |
 |---|---|
 | Exact authorized executable file | `EXECUTE|READ_FILE` (both were needed by this kernel/probe); do not authorize its parent directory for execute. |
-| Exact ELF interpreter file resolved from the ELF header | `EXECUTE` (the isolated test succeeded without `READ_FILE`). Do not grant execute on its containing directory. |
+| Exact ELF interpreter file resolved from the ELF header | `EXECUTE|READ_FILE` (execute-only returned `EACCES`). Do not grant execute on its containing directory. |
 | Exact shared-object dependency files | `READ_FILE`; grant `READ_DIR` only to directories needed for pathname traversal. Prefer exact dependency files; if broad ABI-specific library directories are unavoidable, they must be read-only and must not include `EXECUTE`. |
 | `/etc/ld.so.cache` | `READ_FILE` only if retained; it was opened by these loaders but the tested loader successfully fell back when it received `EACCES`. |
 | `/etc/ld.so.preload` | No grant needed when absent; if host policy requires it, treat it as a sensitive single file and account for the fact it can inject code. |
 | `/etc/alternatives` | No directory grant. Resolve the selected link to its concrete target and authorize that file. |
 | `/proc`, `/sys` | No startup grant based on these traces; grant only for a measured, documented runtime dependency. |
-| Plugin writable/staging path | Grant only required create/write rights. Do **not** combine it with `READ_FILE` where avoidable: current `rwAccess` includes read and the LD_PRELOAD probe demonstrates code loading from such a path. |
+| Plugin writable/staging path | ADR-0013 pairs staging read/write grants. This lets loader routes consume staged code without Landlock EXECUTE; document this allowlist-fidelity residual. Measurements found no added Landlock authority. |
 
 Do not give `EXECUTE` to `/lib`, `/lib64`, `/usr/lib`, `/usr/lib64`, `/bin`, `/usr/bin`, or `/etc/alternatives`. Directory execute both exceeds the basename manifest and allowed the undeclared APT helper in the experiment.
 
 ## Residual risks
 
-1. The current sandbox uses a seccomp denylist. It does not constrain executable `mmap`, `mprotect`, `execve`, or `execveat`; it does not mitigate the demonstrated preload route.
-2. Current write rules include read rights, so a dynamic executable can load a newly written shared object from a read/write grant without Landlock `EXECUTE` on that file. This is empirically demonstrated. Item D must not claim exact executable authorization is a complete code-execution boundary while this remains true.
-3. Broad library-directory execute grants let a plugin invoke undeclared helpers and all descendant processes inherit that authority.
-4. Environment variables affecting the loader, PATH changes, file replacement between resolution and execution, interpreter/runtime `dlopen` behavior, architecture-specific library paths, and package-manager helper graphs require explicit design. The captured matrix is WSL Ubuntu 26.04.1, x86_64, ABI 7; other Debian-family releases and architectures may differ.
-5. This report’s Landlock matrix uses an isolated C reproducer for policy-right combinations, not `InvokeSandboxed()` end-to-end. The project’s denylist filter was source-reviewed but not installed in that reproducer; the relevant syscalls are visibly outside its denylist.
+1. LD_PRELOAD and direct PIE-through-ld.so execute bytes lacking Landlock EXECUTE. This weakens executable-allowlist fidelity. Tested code gained no extra Landlock authority: `/etc/shadow` remained EACCES, sockets already worked, and mount was EPERM. Unshare succeeded only in the no-seccomp C probe.
+2. ADR-0013's readable writable staging enables this loader behavior. It is a documented residual of the staging design, not an established privilege escalation or containment escape. Do not describe exact executable-file grants as a complete code-loading boundary.
+3. Broad library-directory EXECUTE starts undeclared helpers, which inherit the same Landlock domain. This is a manifest-fidelity issue absent evidence that the helper itself gains rights unavailable to plugin code.
+4. Loader environment, PATH changes, file replacement, dlopen, architecture-specific dependencies, and transitive helper graphs still require explicit design. Results are specific to WSL Ubuntu 26.04.1, x86_64, ABI 7.
+5. Real `linuxSandbox.Exec` scenarios were attempted, but all failed before the Go fixture began: helper exit 111, stderr `permission denied`. Actual namespace/NO_NEW_PRIVS/seccomp behavior for these payloads remains unverified.
 
 ## Proposed ADR-0007 amendment text (proposal only)
 
-> A `subprocess` entry is a logical executable basename, never a path. Registration rejects empty names, embedded NUL, `/`, `\\`, relative PATH results, and unresolved/non-executable targets. The host resolves each entry against a fixed trusted PATH, canonicalizes the target, and stores the resolved absolute file path together with the logical invocation name needed for `argv[0]` semantics. The policy grants execute only on each explicitly resolved executable file and its exact ELF interpreter; it grants read-only access to measured shared-object dependencies and loader metadata. It MUST NOT grant execute on library or binary directories. Declarations cover the complete descendant process tree. These rights do not by themselves prevent code loading via readable writable paths: implementation must separately ensure untrusted writable content is not readable by dynamic loaders or otherwise close/test the `LD_PRELOAD`/executable-mapping route before claiming subprocess authorization is an execution allowlist.
 
-The present ADR statement that library-directory execute has negligible risk should be removed. The measured helper execution and preload behavior are counterevidence.
+> A `subprocess` entry is a logical executable basename, never a path. Registration rejects empty names, embedded NUL, `/`, `\\`, relative PATH results, and unresolved/non-executable targets. The host resolves each entry against a fixed trusted PATH, canonicalizes the target, and stores the resolved absolute file path together with the logical invocation name needed for `argv[0]` semantics. The policy grants `EXECUTE|READ_FILE` on each explicitly resolved executable and exact ELF interpreter, plus read-only access to measured shared-object dependencies and loader metadata. It MUST NOT grant execute on library or binary directories. Declarations cover the complete descendant process tree and define executable-allowlist fidelity. Readable writable staging (as in ADR-0013) permits LD_PRELOAD and direct ld.so PIE loading without Landlock EXECUTE; experiments found no additional Landlock authority, so document this as a residual rather than an established containment escape. Do not claim the manifest constrains every code-loading path.
+The present ADR statement that library-directory execute has negligible risk should be removed. The helper execution is evidence of allowlist expansion; the loader results similarly show code-loading paths outside the executable-file list, without a demonstrated privilege gain.
 
 ## Binding scope for Item D
 
 **Item D must:**
 
-- Validate the declaration as basenames before any path lookup; reject all traversal/path and invalid-byte cases above.
-- Resolve against a fixed host-controlled absolute PATH, handle Go `exec.ErrDot`, canonicalize the executable target, and preserve alias/`argv[0]` behavior deliberately.
-- Add only exact declared executable file targets and exact interpreter targets, plus measured read-only dependencies/metadata. Document how resolved dependencies and the manifest’s descendant-process graph are handled.
-- Add explicit tests for allowed declared targets, denied undeclared targets, paths/NUL/PATH cases, symlink resolution, transitive children, and loader-assisted loading from writable content. Do not claim success based on unit policy slices alone.
-- Treat the `LD_PRELOAD` result as an open security requirement: coordinate a change to rights on writable paths, environment handling, or another enforceable boundary and prove the fix before advertising the subprocess list as an execution allowlist.
+- Validate subprocess declarations as basenames before lookup; reject traversal, NUL, and invalid separators.
+- Resolve against a fixed absolute PATH, handle `exec.ErrDot`, canonicalize targets, and preserve alias/argv0 semantics.
+- Grant exact executable and interpreter targets (`EXECUTE|READ_FILE`) plus measured read-only dependencies/metadata. Document the descendant graph and distinguish command allowlisting from kernel containment.
+- Include verification for declared/undeclared helpers, PATH and symlink cases, descendants, and readable staged loader routes. The real Linux sandbox fixture was blocked by helper `permission denied` in this WSL run; do not present C-only results as end-to-end verification.
+- Document the ADR-0013 staging interaction: loader-mediated code can run without target EXECUTE, but these experiments found no added Landlock authority. Treat it as residual allowlist-fidelity behavior, not an established open containment requirement.
 
 **Item D must not:**
 
 - Append raw manifest strings to `Policy.Executables`.
-- grant execute on `/lib*`, `/usr/lib*`, `/bin`, `/usr/bin`, or `/etc/alternatives` to make dynamic linking work.
-- Rely on `EXECUTE` being absent from `WritePaths` as proof that written code cannot run.
-- Treat subprocess declarations as only top-level commands when descendants inherit the same Landlock domain.
+- Grant execute on `/lib*`, `/usr/lib*`, `/bin`, `/usr/bin`, or `/etc/alternatives` to make dynamic linking work.
+- Treat subprocess declarations as only top-level commands when descendants inherit restrictions.
 - Modify ADR-0007 until this analysis and proposed amendment are reviewed.
